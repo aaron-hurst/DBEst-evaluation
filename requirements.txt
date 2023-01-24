@@ -1,0 +1,12 @@
+category_encoders
+dill
+gensim
+jupyterlab
+matplotlib
+numpy
+pandas
+qregpy
+scipy
+sklearn
+sqlparse
+torch
