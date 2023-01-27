@@ -26,7 +26,13 @@ class DBEstSampling:
                 self.n_sample_point = ratio
                 self.sample = ReservoirSampling(headers=self.headers)
                 self.sample.build_reservoir(
-                    file, ratio, split_char=split_char, save2file=file2save, n_total_point=num_total_records, usecols=self.usecols)
+                    file,
+                    ratio,
+                    split_char=split_char,
+                    save2file=file2save,
+                    n_total_point=num_total_records,
+                    usecols=self.usecols
+                )
                 self.n_total_point = self.sample.n_total_point
                 # print("total point", self.n_total_point)
                 # print("sample point",self.n_sample_point)

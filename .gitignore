@@ -4,6 +4,7 @@
 .vscode/
 *.pyc
 config.json
+config.py
 dbest.sublime-workspace
 dbestclient.egg-info/
 dbestwarehouse/

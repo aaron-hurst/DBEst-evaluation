@@ -104,14 +104,12 @@ class ReservoirSampling:
                 columns_continous = [usecols['y'][0]]
 
                 if usecols['x_continous']:
-                    columns_continous = columns_continous + \
-                        usecols['x_continous']
+                    columns_continous = columns_continous + usecols['x_continous']
 
                 columns_categorial = []
                 if usecols["x_categorical"]:
                     # columns = columns + usecols['x_categorical']
-                    columns_categorial = columns_categorial + \
-                        usecols['x_categorical']
+                    columns_categorial = columns_categorial + usecols['x_categorical']
                 if usecols["gb"]:
                     for col in usecols["gb"]:
                         if col not in columns_continous + columns_categorial:
@@ -123,7 +121,10 @@ class ReservoirSampling:
                             # columns = columns + usecols['gb']
                     # gb_cols = ["gb_"+i for i in usecols['gb']]
                     # columns_categorial = columns_categorial + gb_cols
+                
+                # Combine and deduplicate final columns list
                 usecols_list = columns_continous + columns_categorial
+                usecols_list = list(set(usecols_list))
 
                 # print(self.sampledf)
                 # print(self.sampledf["tenantid"])
@@ -138,12 +139,13 @@ class ReservoirSampling:
                 # convert continuous X attributes to float, execept for those that repeated in the GROUP BY clause.
                 # print(usecols)
                 # print(usecols['x_continous'])
-                columns_to_float = [
-                    item for item in usecols['x_continous'] if item not in usecols["gb"]]
+                if usecols["gb"]:
+                    columns_to_float = [item for item in usecols['x_continous'] if item not in usecols["gb"]]
+                else:
+                    columns_to_float = usecols['x_continous']
                 # print("columns_to_float", columns_to_float)
                 for col in columns_to_float:
-                    self.sampledf[col] = self.sampledf[col].apply(
-                        pd.to_numeric, errors='coerce')
+                    self.sampledf[col] = self.sampledf[col].apply(pd.to_numeric, errors='coerce')
                 # self.sampledf[columns_continous] = self.sampledf[columns_continous].apply(
                 #     pd.to_numeric, errors='coerce')
                 # self.sampledf.dropna()
@@ -163,8 +165,11 @@ class ReservoirSampling:
                     self.sampledf[col] = self.sampledf[col].astype(str)
 
                 # if col in both X and Group BY, convert it to float
-                columns_common = [
-                    item for item in usecols['x_continous'] if item in usecols["gb"]]
+                if usecols["gb"]:
+                    columns_common = [item for item in usecols['x_continous'] if item in usecols["gb"]]
+                else:
+                    columns_common = usecols['x_continous']
+                
 
                 for col in columns_common:
                     self.sampledf[col] = self.sampledf[col].apply(

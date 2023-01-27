@@ -34,12 +34,13 @@ class SqlExecutor:
     This is the executor for the SQL query.
     """
 
-    def __init__(self):
+    def __init__(self, warehouse_path, save_sample=False):
         self.parser = None
-        self.config = DbestConfig()
+        self.warehouse_path = warehouse_path
+        self.config = DbestConfig(warehouse_path)
         self.model_catalog = DBEstModelCatalog()
         self.init_model_catalog()
-        self.save_sample = False
+        self.save_sample = save_sample
         self.table_header = None
         self.n_total_records = None
         self.use_kde = True
@@ -85,7 +86,7 @@ class SqlExecutor:
         if n_model > 0:
             print("Loaded " + str(n_model) + " models.")
 
-    def execute(self, sql, n_jobs=4, device="cpu", ):
+    def execute(self, sql, n_jobs=4, device="cpu"):
         # b_use_gg=False, n_per_gg=10, result2file=None,n_mdn_layer_node = 10, encoding = "onehot",n_jobs = 4, b_grid_search = True,device = "cpu", n_division = 20
         # prepare the parser
         if type(sql) == str:
@@ -103,10 +104,11 @@ class SqlExecutor:
         else:
             if self.parser.if_ddl():
                 # initialize the configure for each model creation.
-                self.config = DbestConfig()
+                self.config = DbestConfig(self.warehouse_path)
                 # DDL, create the model as requested
                 mdl = self.parser.get_ddl_model_name()
-                tbl = self.parser.get_from_name()
+                # Get original data file
+                original_data_file = self.parser.get_from_name()
 
                 # save the parameters for model.
                 self.config.set_parameter("n_jobs", n_jobs)
@@ -115,13 +117,21 @@ class SqlExecutor:
                 if self.parser.if_model_need_filter():
                     self.config.set_parameter("accept_filter", True)
 
-                # remove unnecessary charactor '
-                tbl = tbl.replace("'", "")
-                if os.path.isfile(tbl):  # the absolute path is provided
-                    original_data_file = tbl
-                else:  # the file is in the warehouse direcotry
-                    original_data_file = self.config.get_config()[
-                        'warehousedir'] + "/" + tbl
+                # Get table name from data file
+                # If relative path provided, assume file is in the warehouse directory
+                if os.path.isfile(original_data_file):  # if full path, return only filename
+                    tbl = os.path.basename(original_data_file)
+                else:
+                    tbl = original_data_file
+                tbl = tbl.replace("'", "").replace(".csv", "")
+
+                # Get original data file path
+                if os.path.isfile(original_data_file):
+                    original_data_filepath = original_data_file
+                else:
+                    original_data_filepath = os.path.join(
+                        self.config.get_config()['warehousedir'], original_data_file
+                    )
                 yheader = self.parser.get_y()
 
                 xheader_continous, xheader_categorical = self.parser.get_x()
@@ -129,17 +139,30 @@ class SqlExecutor:
                 ratio = self.parser.get_sampling_ratio()
                 method = self.parser.get_sampling_method()
 
-                # make samples
+                # Make samples
                 if not self.parser.if_contain_groupby():  # if group by is not involved
                     sampler = DBEstSampling(
-                        headers=self.table_header, usecols={"y": yheader, "x_continous": xheader_continous, "x_categorical": xheader_categorical, "gb": None})
+                        headers=self.table_header,
+                        usecols={
+                            "y": yheader,
+                            "x_continous": xheader_continous,
+                            "x_categorical": xheader_categorical,
+                            "gb": None
+                        }
+                    )
                 else:
                     groupby_attribute = self.parser.get_groupby_value()
-                    sampler = DBEstSampling(headers=self.table_header, usecols={
-                                            "y": yheader, "x_continous": xheader_continous, "x_categorical": xheader_categorical, "gb": groupby_attribute})
-
+                    sampler = DBEstSampling(
+                        headers=self.table_header,
+                        usecols={
+                            "y": yheader[0],
+                            "x_continous": xheader_continous,
+                            "x_categorical": xheader_categorical,
+                            "gb": groupby_attribute
+                        }
+                    )
                 # print(self.config)
-                if os.path.exists(self.config.get_config()['warehousedir'] + "/" + mdl + '.pkl'):
+                if os.path.exists(os.path.join(self.config.get_config()['warehousedir'], mdl + '.pkl')):
                     print(
                         "Model {0} exists in the warehouse, please use"
                         " another model name to train it.".format(mdl))
@@ -151,21 +174,25 @@ class SqlExecutor:
                 #             "Model {0} exists in the warehouse, please use"
                 #             " another model name to train it.".format(mdl))
                 #         return
-                print("Start creating model " + mdl)
+                print("Start creating model: " + mdl)
                 time1 = datetime.now()
-
                 if self.save_sample:
                     sampler.make_sample(
-                        original_data_file, ratio, method, split_char=self.config.get_config()[
-                            'csv_split_char'],
-                        file2save=self.config.get_config()['warehousedir'] +
-                        "/" + mdl + '.csv',
-                        num_total_records=self.n_total_records)
+                        original_data_filepath,
+                        ratio,
+                        method,
+                        split_char=self.config.get_config()['csv_split_char'],
+                        file2save=os.path.join(self.config.get_config()['warehousedir'], mdl + '.csv'),
+                        num_total_records=self.n_total_records,
+                    )
                 else:
                     sampler.make_sample(
-                        original_data_file, ratio, method, split_char=self.config.get_config()[
-                            'csv_split_char'],
-                        num_total_records=self.n_total_records)
+                        original_data_filepath,
+                        ratio,
+                        method,
+                        split_char=self.config.get_config()['csv_split_char'],
+                        num_total_records=self.n_total_records,
+                    )
 
                 if not self.parser.if_contain_groupby():  # if group by is not involved
                     # check whether this model exists, if so, skip training
@@ -177,9 +204,9 @@ class SqlExecutor:
                     n_total_point = sampler.n_total_point
                     xys = sampler.getyx(yheader, xheader_continous)
 
-                    simple_model_wrapper = SimpleModelTrainer(mdl, tbl, xheader_continous, yheader,
-                                                              n_total_point, ratio, config=self.config).fit_from_df(
-                        xys)
+                    simple_model_wrapper = SimpleModelTrainer(
+                        mdl, tbl, xheader_continous, [yheader[0]], n_total_point, ratio, config=self.config.get_config()
+                    ).fit_from_df(xys)
 
                     simple_model_wrapper.serialize2warehouse(
                         self.config.get_config()['warehousedir'])
@@ -189,7 +216,7 @@ class SqlExecutor:
                     if self.config.get_config()['reg_type'] == "qreg":
                         xys = sampler.getyx(yheader, xheader_continous)
                         n_total_point = get_group_count_from_table(
-                            original_data_file, groupby_attribute, sep=self.config.get_config()[
+                            original_data_filepath, groupby_attribute, sep=self.config.get_config()[
                                 'csv_split_char'],
                             headers=self.table_header)
 
@@ -210,7 +237,7 @@ class SqlExecutor:
                         # xys=xys.dropna(subset=[yheader, xheader,groupby_attribute])
 
                         # n_total_point = get_group_count_from_table(
-                        #     original_data_file, groupby_attribute, sep=',',#self.config['csv_split_char'],
+                        #     original_data_filepath, groupby_attribute, sep=',',#self.config['csv_split_char'],
                         #     headers=self.table_header)
                         if self.parser.get_scaling_method()[0] == "file":
                             frequency_file = self.config.get_config()['warehousedir'] + "/" + self.parser.get_scaling_method()[

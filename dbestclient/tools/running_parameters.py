@@ -22,10 +22,10 @@ class DbestConfig:
     """ This is the configuration file for DBEstClient.
     """
 
-    def __init__(self):
+    def __init__(self, warehouse_path):
         self.config = {
             # system-level configuration.
-            'warehousedir': '/home/u1796377/Programs/dbestwarehouse',
+            'warehousedir': warehouse_path,
             'verbose': True,
             'b_show_latency': True,
             "b_print_to_screen": True,

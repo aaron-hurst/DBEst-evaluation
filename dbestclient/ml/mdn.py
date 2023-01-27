@@ -839,7 +839,7 @@ class RegMdn():
             nn.Linear(self.dim_input, self.n_mdn_layer_node),
             nn.Tanh(),
             nn.Dropout(0.01),
-            MDN(self.n_mdn_layer_node, 1, num_gaussians)
+            MDN(self.n_mdn_layer_node, 1, num_gaussians, self.device)
         )
 
         optimizer = optim.Adam(self.model.parameters())
@@ -850,7 +850,7 @@ class RegMdn():
             for minibatch, labels in my_dataloader:
                 self.model.zero_grad()
                 pi, sigma, mu = self.model(minibatch)
-                loss = mdn_loss(pi, sigma, mu, labels)
+                loss = mdn_loss(pi, sigma, mu, labels, self.device)
                 loss.backward()
                 optimizer.step()
 

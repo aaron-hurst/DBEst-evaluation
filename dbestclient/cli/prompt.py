@@ -26,7 +26,6 @@ class DBEstPrompt(Cmd):
         self.intro = "Welcome to DBEst: a model-based AQP engine! Type exit to exit!"
         self.query = ""
 
-
         # deal with configuration file
         if os.path.exists('config.json'):
             print("Configuration file loaded.")

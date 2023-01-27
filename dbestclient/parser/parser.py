@@ -1,3 +1,4 @@
+import os
 import re
 from dataclasses import replace
 
@@ -185,11 +186,13 @@ class DBEstParser:
                             return method, None
 
     def get_groupby_value(self):
+        groups = []
         for item in self.parsed.tokens:
             if item.ttype is Keyword and item.value.lower() == "group by":
                 idx = self.parsed.token_index(item, 0) + 2
                 groups = self.parsed.tokens[idx].value
-                return groups.replace(" ", "").split(",")
+                groups = groups.replace(" ", "").split(",")
+        return groups
 
     def if_ddl(self):
         for item in self.parsed.tokens:
@@ -198,20 +201,20 @@ class DBEstParser:
         return False
 
     def get_ddl_model_name(self):
-        for item in self.parsed.tokens:
-            if item.ttype is None and "(" in item.value.lower():
-                return item.tokens[0].value
+        # for item in self.parsed.tokens:
+        #     if item.ttype is None and "(" in item.value.lower():
+        #         return item.tokens[0].value
+        return self.parsed.tokens[4].value
 
     def get_y(self):
-        item = self.parsed.tokens[4].value
+        item = self.parsed.tokens[5].value  # original code had wrong index
         index_comma = item.index(",")
         item = item[:index_comma]
         y_list = item.lower().replace(
             "(", " ").replace(")", " ").replace(",", " ").split()
         # print("y_list", y_list)
-        if y_list[2] not in ["real", "categorical"]:
-            raise TypeError("Unsupported type for " +
-                            y_list[1] + " -> " + y_list[2])
+        if y_list[1] not in ["real", "categorical"]:  # original code had wrong index
+            raise TypeError("Unsupported type for " + y_list[0] + " -> " + y_list[1])
         # if item.ttype is None and "(" in item.value.lower():
         #     y_list = item.tokens[1].value.lower().replace(
         #         "(", "").replace(")", "").replace(",", " ").split()
@@ -219,14 +222,18 @@ class DBEstParser:
         #         raise TypeError("Unsupported type for " +
         #                         y_list[0] + " -> " + y_list[1])
         if len(y_list) == 4:
-            return [y_list[1], y_list[2], y_list[3]]
+            return [y_list[0], y_list[1], y_list[2]]
         else:
-            return [y_list[1], y_list[2], None]
+            return [y_list[0], y_list[1], None]
 
         # return item.tokens[1].tokens[1].value, item.tokens[1].tokens[3].value
 
     def get_x(self):
-        item = self.parsed.tokens[4].value
+        item = self.parsed.tokens[5].value  # list of table columns and types
+        # NOTE As far as I understand it, this filters out the first column because it
+        # is assumed to be the aggregation column is the first column.
+        # NOTE There may only be one (continuous) predicate column (i.e. independent
+        # variable).
         index_comma = item.index(",")
         item = item[index_comma+1:]
         x_list = item.lower().replace(
@@ -237,7 +244,7 @@ class DBEstParser:
         for idx in range(1, len(x_list), 2):
             if x_list[idx] == "real":
                 continous.append(x_list[idx-1])
-            if x_list[idx] == "categorical":
+            elif x_list[idx] == "categorical":
                 categorical.append(x_list[idx-1])
 
         if len(continous) > 1:
@@ -274,7 +281,8 @@ class DBEstParser:
         for item in self.parsed.tokens:
             if item.ttype is Keyword and item.value.lower() == "from":
                 idx = self.parsed.token_index(item, 0) + 2
-                return self.parsed.tokens[idx].value
+                from_value = self.parsed.tokens[idx].value.replace("'", "")
+                return from_value
 
     def get_sampling_ratio(self):
         for item in self.parsed.tokens:
@@ -293,8 +301,9 @@ class DBEstParser:
     def if_model_need_filter(self):
         x = self.get_x()
         gbs = self.get_groupby_value()
-
         # print("x", x)
+        # NOTE This fails in the original code because gbs could be None. I changed this
+        # in self.get_goupby_value.
         if x[0][0] in gbs:
             return True
         else:
