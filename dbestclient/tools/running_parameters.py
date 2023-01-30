@@ -19,8 +19,7 @@
 
 
 class DbestConfig:
-    """ This is the configuration file for DBEstClient.
-    """
+    """This is the configuration file for DBEstClient."""
 
     def __init__(self, warehouse_path):
         self.config = {
@@ -41,6 +40,7 @@ class DbestConfig:
             'csv_split_char': ',',
 
             "accept_filter": False,
+            
             # MDN related parameters
             "num_epoch": 400,
             "num_gaussians": 4,
@@ -53,6 +53,7 @@ class DbestConfig:
             # integral related parameters
             "b_use_integral": False,
             "n_division": 20,
+
             # integral package related parameters
             "epsabs": 10.0,
             "epsrel": 0.1,
@@ -79,6 +80,12 @@ class DbestConfig:
             self.config[key] = value
         else:
             raise ValueError(f"Cannot set {key} to None")
+
+    def get_parameter(self, key: str):
+        try:
+            return self.config[key]
+        except KeyError:
+            raise KeyError(f"{key} is not a valid parameter")
 
     def get_config(self):
         """ Return the configuration for DBEstClient.

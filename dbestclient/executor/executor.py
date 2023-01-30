@@ -37,11 +37,9 @@ class SqlExecutor:
     This is the executor for the SQL query.
     """
 
-    def __init__(self, warehouse_path, save_sample=False, num_epoch=None, density_type=None):
+    def __init__(self, warehouse_path, save_sample=False):
         self.parser = None
         self.warehouse_path = warehouse_path
-        self.num_epoch = num_epoch
-        self.density_type = density_type
         self.config = DbestConfig(warehouse_path)
         self.model_catalog = DBEstModelCatalog()
         self.init_model_catalog()
@@ -49,12 +47,6 @@ class SqlExecutor:
         self.table_header = None
         self.n_total_records = None
         self.use_kde = True
-
-        # Update parameters
-        if num_epoch is not None:
-            self.config.set_parameter("num_epoch", num_epoch)
-        if density_type is not None:
-            self.config.set_parameter("density_type", density_type)
 
     def init_model_catalog(self):
         # search the warehouse, and add all available models.
@@ -115,8 +107,6 @@ class SqlExecutor:
             if self.parser.if_ddl():
                 # initialize the configure for each model creation.
                 self.config = DbestConfig(self.warehouse_path)
-                self.config.set_parameter("num_epoch", self.num_epoch)
-                self.config.set_parameter("density_type", self.density_type)
                 # DDL, create the model as requested
                 mdl = self.parser.get_ddl_model_name()
                 # Get original data file

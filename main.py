@@ -11,16 +11,12 @@ from config import LOG_FORMAT, NAME_DELIMITER, DATA_DIR, WAREHOUSE_DIR, QUERIES_
 from schemas import DB_SCHEMAS
 
 LOGGING_LEVEL = logging.INFO
-DATA_MODEL_CREATED = False
 DATA_SOURCE = "ampds"
 DATASET_ID = "basement_plugs_and_lights"
 QUERIES_SET = "ampds-basement_plugs_and_lights-N=100"
 SAMPLING_METHOD = "uniform"
 SAMPLE_SIZE = 1000
 SAVE_SAMPLE = True
-NUM_EPOCH = 400
-DENSITY_TYPE = "kde"
-REGRESSION_TYPE = "mdn"
 AGGREGATIONS = [
     "COUNT",
     "SUM",
@@ -36,13 +32,13 @@ AGGREGATIONS = [
 def build_models(dataset_full_id, csv_path):
     """Build/load models for each pair of columns and return SQL executor object."""
     schema = DB_SCHEMAS[DATA_SOURCE][DATASET_ID]
-    sql_executor = SqlExecutor(WAREHOUSE_DIR, SAVE_SAMPLE, NUM_EPOCH, DENSITY_TYPE)
+    sql_executor = SqlExecutor(WAREHOUSE_DIR, save_sample=SAVE_SAMPLE)
     n_columns = len(schema["column_names"])
     for i in range(n_columns):
-        column_1_str = schema["column_names"][i] + " " + schema["column_types"][i]
+        column_1_str = schema["column_names"][i] + " real"
         for j in range(n_columns):
             logger.debug(f"Building model for column pair: ({i}, {j})")
-            column_2_str = schema["column_names"][j] + " " + schema["column_types"][j]
+            column_2_str = schema["column_names"][j] + " real"
             table_name = (
                 f"{dataset_full_id}_{schema['column_names'][i]}_"
                 f"{schema['column_names'][j]}_{SAMPLE_SIZE}"
@@ -153,17 +149,26 @@ def main():
     # Export configuration and performance statistics
     os.makedirs(os.path.dirname(info_filepath), exist_ok=True)
     logger.info(f"Saving experiment parameters and statistics to {info_filepath}")
+    n_epoch = sql_executor.config.get_parameter("num_epoch")
+    n_gaussians = sql_executor.config.get_parameter("num_gaussians")
+    regression_type = sql_executor.config.get_parameter("reg_type")
+    density_type = sql_executor.config.get_parameter("density_type")
+    device_type = sql_executor.config.get_parameter("device")
+    n_mdn_layer_node = sql_executor.config.get_parameter("n_mdn_layer_node")
     with open(info_filepath, "w", newline="") as f:
         f.write(f"------------- Parameters -------------\n")
-        f.write(f"DATA_MODEL_CREATED   {DATA_MODEL_CREATED}\n")
         f.write(f"DATA_SOURCE          {DATA_SOURCE}\n")
         f.write(f"DATASET_ID           {DATASET_ID}\n")
         f.write(f"QUERIES_SET          {QUERIES_SET}\n")
         f.write(f"SAMPLING_METHOD      {SAMPLING_METHOD}\n")
         f.write(f"SAMPLE_SIZE          {SAMPLE_SIZE:,d}\n")
-        f.write(f"NUM_EPOCH            {NUM_EPOCH:,d}\n")
-        f.write(f"DENSITY_TYPE         {DENSITY_TYPE}\n")
-
+        f.write(f"N_EPOCH              {n_epoch:,d}\n")
+        f.write(f"N_GAUSSIANS          {n_gaussians:,d}\n")
+        f.write(f"N_MDN_LAYER_NODE     {n_mdn_layer_node:,d}\n")
+        f.write(f"REGRESSION_TYPE      {regression_type}\n")
+        f.write(f"DENSITY_TYPE         {density_type}\n")
+        f.write(f"DEVICE_TYPE          {device_type}\n")
+        
         f.write(f"\n------------- Runtime -------------\n")
         f.write(f"Generate models      {t_modelling:.3f} s\n")
         f.write(f"Run queries          {t_queries:.3f} s\n")
