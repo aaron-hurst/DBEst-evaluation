@@ -1,6 +1,7 @@
 from time import perf_counter
 from datetime import datetime
 import json
+import numpy as np
 import logging
 import os
 
@@ -11,11 +12,11 @@ from config import LOG_FORMAT, NAME_DELIMITER, DATA_DIR, WAREHOUSE_DIR, QUERIES_
 from schemas import DB_SCHEMAS
 
 LOGGING_LEVEL = logging.INFO
-DATA_SOURCE = "ampds"
-DATASET_ID = "basement_plugs_and_lights"
-QUERIES_SET = "ampds-basement_plugs_and_lights-N=100"
+DATA_SOURCE = "kaggle"
+DATASET_ID = "temperature_iot_on_gcp"
+QUERIES_SET = "kaggle-temperature_iot_on_gcp-N=100"
 SAMPLING_METHOD = "uniform"
-SAMPLE_SIZE = 1000
+SAMPLE_SIZE = 10000
 SAVE_SAMPLE = True
 AGGREGATIONS = [
     "COUNT",
@@ -26,13 +27,22 @@ AGGREGATIONS = [
     "MIN",
     "VARIANCE",
 ]
-# TODO check running_parameters.DbestConfig for more parameters
 
 
-def build_models(dataset_full_id, csv_path):
+def load_dataset(dataset_full_id, csv_path):
+    if dataset_full_id in ["chicago-taxi_trips", "kaggle-light_detection"]:
+        df = pd.read_csv(csv_path, header=0, dtype=np.float64)
+        n_bytes_per_value = 8
+    else:
+        df = pd.read_csv(csv_path, header=0, dtype=np.float32)
+        n_bytes_per_value = 4
+    return df.dropna(), n_bytes_per_value
+
+
+def build_models(dataset_full_id, csv_path, warehouse_path):
     """Build/load models for each pair of columns and return SQL executor object."""
     schema = DB_SCHEMAS[DATA_SOURCE][DATASET_ID]
-    sql_executor = SqlExecutor(WAREHOUSE_DIR, save_sample=SAVE_SAMPLE)
+    sql_executor = SqlExecutor(warehouse_path, save_sample=SAVE_SAMPLE)
     n_columns = len(schema["column_names"])
     for i in range(n_columns):
         column_1_str = schema["column_names"][i] + " real"
@@ -57,36 +67,50 @@ def build_models(dataset_full_id, csv_path):
     return sql_executor
 
 
+def aggregate(data, agg):
+    if agg.upper() == "COUNT":
+        return data.shape[0]
+    elif agg.upper() == "SUM":
+        return data.sum()
+    elif agg.upper() == "AVG":
+        return data.mean()
+    else:
+        raise NotImplementedError("Aggregation {:s} not available".format(agg))
+
+
 def main():
     # Setup
     dataset_full_id = DATA_SOURCE + NAME_DELIMITER + DATASET_ID
     schema = DB_SCHEMAS[DATA_SOURCE][DATASET_ID]
     csv_path = os.path.join(DATA_DIR, "uncompressed", dataset_full_id + ".csv")
+    warehouse_path = os.path.join(
+        WAREHOUSE_DIR, dataset_full_id, f"sample_size_{SAMPLE_SIZE}"
+    )
     queries_path = os.path.join(QUERIES_DIR, dataset_full_id, QUERIES_SET + ".csv")
     results_path = os.path.join(
         "experiments",
         "comparisons_for_paper",
         dataset_full_id,
-        QUERIES_SET + "_" + str(SAMPLE_SIZE),
+        QUERIES_SET,
+        f"sample_size_{SAMPLE_SIZE}",
     )
     results_filepath = os.path.join(results_path, "results.csv")
     info_filepath = os.path.join(results_path, "info.txt")
+    data, n_bytes_per_value = load_dataset(dataset_full_id, csv_path)
 
     # Ensure output directories exists
-    if os.path.exists(WAREHOUSE_DIR):
+    if os.path.exists(warehouse_path):
         logger.info("Warehouse is initialized.")
     else:
         logger.info("Warehouse does not exists, so initialize one.")
-        os.makedirs(WAREHOUSE_DIR)
-    if not os.path.exists(results_path):
-        os.makedirs(results_path)
+        os.makedirs(warehouse_path)
 
     # Create models
     # method <method> <rate> specifies the sampling rate for creating the models.
     # e.g. "method uniform size 1000" does uniform sampling with 1000 samples
     t_modelling_start = perf_counter()
     logger.info("Creating data model...")
-    sql_executor = build_models(dataset_full_id, csv_path)
+    sql_executor = build_models(dataset_full_id, csv_path, warehouse_path)
     t_modelling = perf_counter() - t_modelling_start
 
     # Run queries
@@ -100,12 +124,11 @@ def main():
         predicate_col = int(query.predicate_column)
         predicate_col_name = schema["column_names"][predicate_col]
         predicate = [query.predicate_low, query.predicate_high]
-        if (i % 100) == 0:
+        mask = (data[predicate_col_name] > predicate[0]) & (
+            data[predicate_col_name] < predicate[1]
+        )
+        if (i % 50) == 0:
             logger.info(f"Running query {i}")
-
-        if i > 5:
-            break
-
         for aggregation_col in range(n_columns):
             aggregation_col_name = schema["column_names"][aggregation_col]
             model_name = (
@@ -113,6 +136,7 @@ def main():
                 f"_{predicate_col_name}_{SAMPLE_SIZE}"
             )
             for aggregation in AGGREGATIONS:
+                # Predicated value
                 query_str = (
                     f"select {aggregation}({aggregation_col_name}) "
                     f"from {model_name} "
@@ -123,28 +147,59 @@ def main():
                     predicted_value, t_estimate = sql_executor.execute(query_str)
                 except NotImplementedError:
                     continue
+
+                # Exact value
+                exact = aggregate(data.loc[mask][aggregation_col_name], aggregation)
+
+                # Results list
                 results.append(
-                    {'query_id': i,
-                    "predicate_column": predicate_col,
-                    "aggregation_column": aggregation_col,
-                    "aggregation": aggregation,
-                    'predicted_value': predicted_value,
-                    'latency': t_estimate,
-                    })
+                    {
+                        "query_id": i,
+                        "predicate_column": predicate_col,
+                        "aggregation_column": aggregation_col,
+                        "aggregation": aggregation,
+                        "latency": t_estimate,
+                        "predicted_value": predicted_value,
+                        "exact_value": exact,
+                    }
+                )
                 n_queries = n_queries + 1
     t_queries = perf_counter() - t_queries_start
 
-    # Export results
+    # Compute error statistics
     df = pd.DataFrame(results).set_index("query_id", drop=True)
+    df["error"] = df["predicted_value"] - df["exact_value"]
+    df["relative_error"] = (
+        (df["error"] / df["exact_value"] * 100)
+        .replace({np.nan: 100, np.inf: np.nan, -np.inf: np.nan})
+        .abs()
+    )
+
+    # Export results
     logger.info("Exporting results.")
+    if not os.path.exists(results_path):
+        os.makedirs(results_path)
     df.to_csv(results_filepath, index=True)
 
+    # Display results
+    logger.info(
+        "Median relative error by column:\n%s",
+        df.groupby(["predicate_column", "aggregation_column"])
+        .agg({"relative_error": "median"})
+        .unstack()
+        .round(2),
+    )
+    logger.info(
+        "Relative error by accregate:\n%s",
+        df.groupby("aggregation")[["relative_error"]].describe(percentiles=[0.5, 0.75, 0.95]).round(3),
+    )
+
     # Get storage information
-    s_original = schema["n_rows"] * n_columns * 4  # bytes
+    s_original = schema["n_rows"] * n_columns * n_bytes_per_value
     s_models = 0
-    for file_name in os.listdir(WAREHOUSE_DIR):
+    for file_name in os.listdir(warehouse_path):
         if file_name.startswith(dataset_full_id) and file_name.endswith(".pkl"):
-            s_models += os.stat(os.path.join(WAREHOUSE_DIR, file_name)).st_size
+            s_models += os.stat(os.path.join(warehouse_path, file_name)).st_size
 
     # Export configuration and performance statistics
     os.makedirs(os.path.dirname(info_filepath), exist_ok=True)
@@ -155,6 +210,9 @@ def main():
     density_type = sql_executor.config.get_parameter("density_type")
     device_type = sql_executor.config.get_parameter("device")
     n_mdn_layer_node = sql_executor.config.get_parameter("n_mdn_layer_node")
+    integration_epsabs = sql_executor.config.get_parameter("epsabs")
+    integration_epsrel = sql_executor.config.get_parameter("epsrel")
+    integration_limit = sql_executor.config.get_parameter("limit")
     with open(info_filepath, "w", newline="") as f:
         f.write(f"------------- Parameters -------------\n")
         f.write(f"DATA_SOURCE          {DATA_SOURCE}\n")
@@ -168,7 +226,10 @@ def main():
         f.write(f"REGRESSION_TYPE      {regression_type}\n")
         f.write(f"DENSITY_TYPE         {density_type}\n")
         f.write(f"DEVICE_TYPE          {device_type}\n")
-        
+        f.write(f"INTEGRATION_EPSABS   {integration_epsabs}\n")
+        f.write(f"INTEGRATION_EPSREL   {integration_epsrel}\n")
+        f.write(f"INTEGRATION_LIMIT    {integration_limit}\n")
+
         f.write(f"\n------------- Runtime -------------\n")
         f.write(f"Generate models      {t_modelling:.3f} s\n")
         f.write(f"Run queries          {t_queries:.3f} s\n")
@@ -183,6 +244,7 @@ def main():
         f.write(f"Original data        {s_original:,d} bytes\n")
         f.write(f"Models               {s_models:,d} bytes\n")
         f.write(f"Models (%)           {s_models / s_original * 100:.2f} %\n")
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=LOGGING_LEVEL, format=LOG_FORMAT)

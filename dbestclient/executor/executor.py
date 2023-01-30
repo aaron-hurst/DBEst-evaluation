@@ -169,7 +169,6 @@ class SqlExecutor:
                         "Model {0} exists in the warehouse, please use"
                         " another model name to train it.".format(mdl)
                     )
-                    return
                 # if self.parser.if_contain_groupby():
                 #     groupby_attribute = self.parser.get_groupby_value()
                 #     if os.path.exists(self.config['warehousedir'] + "/" + mdl + "_groupby_" + groupby_attribute):
@@ -315,8 +314,7 @@ class SqlExecutor:
             else:
                 # DML, provide the prediction using models
                 mdl = self.parser.get_from_name()
-                gb_to_print, [
-                    func, yheader, distinct_condition] = self.parser.get_dml_aggregate_function_and_variable()
+                _, [func, yheader, _] = self.parser.get_dml_aggregate_function_and_variable()
                 if self.parser.if_where_exists():
                     xheader, x_lb, x_ub = self.parser.get_where_x_and_range()
                     try:

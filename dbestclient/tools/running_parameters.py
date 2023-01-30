@@ -29,7 +29,7 @@ class DbestConfig:
             'b_show_latency': True,
             "b_print_to_screen": True,
             "reg_type": "mdn",
-            "density_type": "mdn",
+            "density_type": "kde",
             'backend_server': 'None',
             "n_jobs": 4,
             "b_grid_search": True,
@@ -43,7 +43,7 @@ class DbestConfig:
             
             # MDN related parameters
             "num_epoch": 400,
-            "num_gaussians": 4,
+            "num_gaussians": 10,
             "b_use_gg": False,
             "n_per_gg": 10,
             "result2file": None,

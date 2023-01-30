@@ -154,7 +154,7 @@ DB_SCHEMAS = {
                 "temp_c",
                 "device_id",
             ],
-            "n_rows": 10553597,
+            "n_rows": 100000,
         },
         "temperature_iot_on_gcp_500k": {
             "column_names": [
@@ -162,7 +162,7 @@ DB_SCHEMAS = {
                 "temp_c",
                 "device_id",
             ],
-            "n_rows": 10553597,
+            "n_rows": 500000,
         },
     },
     "uci": {

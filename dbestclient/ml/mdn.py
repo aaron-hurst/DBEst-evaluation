@@ -6,6 +6,7 @@
 
 
 import itertools as it
+import logging
 import math
 import random
 import sys
@@ -40,6 +41,8 @@ from dbestclient.ml.integral import approx_count, prepare_reg_density_data
 """A module for a mixture density network layer
 For more info on MDNs, see _Mixture Desity Networks_ by Bishop, 1994.
 """
+
+logger = logging.getLogger(__name__)
 
 
 class MDN(nn.Module):
@@ -355,7 +358,7 @@ class RegMdnGroupBy():
                 optimizer=optimizer, gamma=decay_rate)
             for epoch in range(n_epoch):
                 if epoch % 1 == 0:
-                    print("< Epoch {}".format(epoch))
+                    logger.debug("< Epoch {}".format(epoch))
                 # train the model
                 for minibatch, labels in my_dataloader:
                     minibatch.to(self.device)
@@ -729,7 +732,7 @@ class RegMdn():
         optimizer = optim.Adam(self.model.parameters())
         for epoch in range(num_epoch):
             if epoch % 100 == 0:
-                print("< Epoch {}".format(epoch))
+                logger.debug("< Epoch {}".format(epoch))
             # train the model
             for minibatch, labels in my_dataloader:
                 minibatch.to(self.device)
@@ -849,7 +852,7 @@ class RegMdn():
         optimizer = optim.Adam(self.model.parameters())
         for epoch in range(num_epoch):
             if epoch % 5 == 0:
-                print("< Epoch {}".format(epoch))
+                logger.debug("< Epoch {}".format(epoch))
             # train the model
             for minibatch, labels in my_dataloader:
                 self.model.zero_grad()
@@ -1125,7 +1128,7 @@ class KdeMdn:
                 optimizer=optimizer, gamma=decayRate)
             for epoch in range(num_epoch):
                 if epoch % 1 == 0:
-                    print("< Epoch {}".format(epoch))
+                    logger.debug("< Epoch {}".format(epoch))
                 # train the model
                 for minibatch, labels in my_dataloader:
                     self.model.zero_grad()

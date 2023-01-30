@@ -105,7 +105,7 @@ class QueryEngine:
             # print("Time spent for approximate COUNT: %.4fs." % time_cost)
         return result, time_cost
 
-    def predict(self,func, x_lb, x_ub):
+    def predict(self, func, x_lb, x_ub):
         if func.lower() == "count":
             p,t = self.approx_count(x_lb, x_ub)
         elif func.lower() == "sum":
