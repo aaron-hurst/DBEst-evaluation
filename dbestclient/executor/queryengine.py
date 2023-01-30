@@ -6,8 +6,9 @@
 from datetime import  datetime
 from scipy import integrate
 import numpy as np
+import logging
 
-
+logger = logging.getLogger(__name__)
 
 
 class QueryEngine:
@@ -47,9 +48,9 @@ class QueryEngine:
             return np.exp(self.kde.score_samples(np.array(args).reshape(1, -1)))
 
         a = integrate.quad(f_pRx, x_min, x_max,
-                           epsabs=self.config['epsabs'], epsrel=self.config['epsrel'])[0]
+                           epsabs=self.config.get_config()['epsabs'], epsrel=self.config.get_config()['epsrel'])[0]
         b = integrate.quad(f_p, x_min, x_max,
-                           epsabs=self.config['epsabs'], epsrel=self.config['epsrel'])[0]
+                           epsabs=self.config.get_config()['epsabs'], epsrel=self.config.get_config()['epsrel'])[0]
 
         if b:
             result = a / b
@@ -60,7 +61,7 @@ class QueryEngine:
         # else:
         #     print("Nan")
 
-        if self.config['verbose']:
+        if self.config.get_config()['verbose']:
             end = datetime.now()
             time_cost = (end - start).total_seconds()
             # print("Time spent for approximate AVG: %.4fs." % time_cost)
@@ -75,14 +76,14 @@ class QueryEngine:
             # * self.reg.predict(np.array(args))
 
         # print(integrate.quad(f_pRx, x_min, x_max, epsabs=epsabs, epsrel=epsrel)[0])
-        result = integrate.quad(f_pRx, x_min, x_max, epsabs=self.config['epsabs'], epsrel=self.config['epsrel'])[0] * float(self.n_total_point)
+        result = integrate.quad(f_pRx, x_min, x_max, epsabs=self.config.get_config()['epsabs'], epsrel=self.config.get_config()['epsrel'])[0] * float(self.n_total_point)
         # return result
 
         # result = result / float(self.n_training_point) * float(self.n_total_point)
 
         # print("Approximate SUM: %.4f." % result)
 
-        if self.config['verbose'] and result != None:
+        if self.config.get_config()['verbose'] and result != None:
             end = datetime.now()
             time_cost = (end - start).total_seconds()
             # print("Time spent for approximate SUM: %.4fs." % time_cost)
@@ -94,11 +95,11 @@ class QueryEngine:
         def f_p(*args):
             return np.exp(self.kde.score_samples(np.array(args).reshape(1, -1)))
 
-        result = integrate.quad(f_p, x_min, x_max, epsabs=self.config['epsabs'], epsrel=self.config['epsrel'])[0]
+        result = integrate.quad(f_p, x_min, x_max, epsabs=self.config.get_config()['epsabs'], epsrel=self.config.get_config()['epsrel'])[0]
         result = result * float(self.n_total_point)
 
         # print("Approximate COUNT: %.4f." % result)
-        if self.config['verbose'] and result != None:
+        if self.config.get_config()['verbose'] and result != None:
             end = datetime.now()
             time_cost = (end - start).total_seconds()
             # print("Time spent for approximate COUNT: %.4fs." % time_cost)
@@ -112,7 +113,7 @@ class QueryEngine:
         elif func.lower() == "avg":
             p,t = self.approx_avg(x_lb, x_ub)
         else:
-            print("Aggregate function " + func + " is not implemented yet!")
+            raise NotImplementedError("Aggregate function " + func + " is not implemented yet!")
         return p,t
 
 if __name__ == "__main__":

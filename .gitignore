@@ -8,6 +8,7 @@ config.py
 dbest.sublime-workspace
 dbestclient.egg-info/
 dbestwarehouse/
+experiments/comparisons_for_paper/
 experiments/huawei/
 MNIST_data/
 notebook/

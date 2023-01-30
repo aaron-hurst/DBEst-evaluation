@@ -75,7 +75,10 @@ class DbestConfig:
             key (str): the key
             value (str or bool): the value
         """
-        self.config[key] = value
+        if value is not None:
+            self.config[key] = value
+        else:
+            raise ValueError(f"Cannot set {key} to None")
 
     def get_config(self):
         """ Return the configuration for DBEstClient.

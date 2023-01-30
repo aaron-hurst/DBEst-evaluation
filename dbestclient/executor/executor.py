@@ -6,6 +6,7 @@
 
 import os
 import os.path
+import logging
 from datetime import datetime
 
 import dill
@@ -28,15 +29,19 @@ from dbestclient.tools.dftools import (get_group_count_from_df,
                                        get_group_count_from_table)
 from dbestclient.tools.running_parameters import DbestConfig
 
+logger = logging.getLogger(__name__)
+
 
 class SqlExecutor:
     """
     This is the executor for the SQL query.
     """
 
-    def __init__(self, warehouse_path, save_sample=False):
+    def __init__(self, warehouse_path, save_sample=False, num_epoch=None, density_type=None):
         self.parser = None
         self.warehouse_path = warehouse_path
+        self.num_epoch = num_epoch
+        self.density_type = density_type
         self.config = DbestConfig(warehouse_path)
         self.model_catalog = DBEstModelCatalog()
         self.init_model_catalog()
@@ -44,6 +49,12 @@ class SqlExecutor:
         self.table_header = None
         self.n_total_records = None
         self.use_kde = True
+
+        # Update parameters
+        if num_epoch is not None:
+            self.config.set_parameter("num_epoch", num_epoch)
+        if density_type is not None:
+            self.config.set_parameter("density_type", density_type)
 
     def init_model_catalog(self):
         # search the warehouse, and add all available models.
@@ -53,19 +64,18 @@ class SqlExecutor:
             # load simple models
             if file_name.endswith(".pkl"):
                 if n_model == 0:
-                    print("start loading pre-existing models.")
+                    logger.info("Start loading pre-existing models.")
 
                 with open(self.config.get_config()['warehousedir'] + "/" + file_name, 'rb') as f:
                     model = dill.load(f)
-                self.model_catalog.model_catalog[model.init_pickle_file_name(
-                )] = model
+                self.model_catalog.model_catalog[model.init_pickle_file_name()] = model
                 n_model += 1
 
             # load group by models
             if os.path.isdir(self.config.get_config()['warehousedir'] + "/" + file_name):
                 n_models_in_groupby = 0
                 if n_model == 0:
-                    print("start loading pre-existing models.")
+                    logger.info("Start loading pre-existing models.")
 
                 for model_name in os.listdir(self.config.get_config()['warehousedir'] + "/" + file_name):
                     if model_name.endswith(".pkl"):
@@ -84,7 +94,7 @@ class SqlExecutor:
                 n_model += 1
 
         if n_model > 0:
-            print("Loaded " + str(n_model) + " models.")
+            logger.info("Loaded " + str(n_model) + " models.")
 
     def execute(self, sql, n_jobs=4, device="cpu"):
         # b_use_gg=False, n_per_gg=10, result2file=None,n_mdn_layer_node = 10, encoding = "onehot",n_jobs = 4, b_grid_search = True,device = "cpu", n_division = 20
@@ -95,16 +105,18 @@ class SqlExecutor:
         elif type(sql) == DBEstParser:
             self.parser = sql
         else:
-            print("Unrecognized SQL! Please check it!")
+            logger.error("Unrecognized SQL! Please check it!")
             exit(-1)
 
         # execute the query
         if self.parser.if_nested_query():
-            print("Nested query is currently not supported!")
+            logger.error("Nested query is currently not supported!")
         else:
             if self.parser.if_ddl():
                 # initialize the configure for each model creation.
                 self.config = DbestConfig(self.warehouse_path)
+                self.config.set_parameter("num_epoch", self.num_epoch)
+                self.config.set_parameter("density_type", self.density_type)
                 # DDL, create the model as requested
                 mdl = self.parser.get_ddl_model_name()
                 # Get original data file
@@ -163,9 +175,10 @@ class SqlExecutor:
                     )
                 # print(self.config)
                 if os.path.exists(os.path.join(self.config.get_config()['warehousedir'], mdl + '.pkl')):
-                    print(
+                    raise FileExistsError(
                         "Model {0} exists in the warehouse, please use"
-                        " another model name to train it.".format(mdl))
+                        " another model name to train it.".format(mdl)
+                    )
                     return
                 # if self.parser.if_contain_groupby():
                 #     groupby_attribute = self.parser.get_groupby_value()
@@ -174,7 +187,7 @@ class SqlExecutor:
                 #             "Model {0} exists in the warehouse, please use"
                 #             " another model name to train it.".format(mdl))
                 #         return
-                print("Start creating model: " + mdl)
+                logger.info("Start creating model: " + mdl)
                 time1 = datetime.now()
                 if self.save_sample:
                     sampler.make_sample(
@@ -182,7 +195,7 @@ class SqlExecutor:
                         ratio,
                         method,
                         split_char=self.config.get_config()['csv_split_char'],
-                        file2save=os.path.join(self.config.get_config()['warehousedir'], mdl + '.csv'),
+                        file2save=os.path.join(self.config.get_config()['warehousedir'], mdl + '_sample.csv'),
                         num_total_records=self.n_total_records,
                     )
                 else:
@@ -208,8 +221,7 @@ class SqlExecutor:
                         mdl, tbl, xheader_continous, [yheader[0]], n_total_point, ratio, config=self.config.get_config()
                     ).fit_from_df(xys)
 
-                    simple_model_wrapper.serialize2warehouse(
-                        self.config.get_config()['warehousedir'])
+                    simple_model_wrapper.serialize2warehouse(self.config.get_config()['warehousedir'])
                     self.model_catalog.add_model_wrapper(simple_model_wrapper)
 
                 else:  # if group by is involved in the query
@@ -307,8 +319,8 @@ class SqlExecutor:
                 time2 = datetime.now()
                 t = (time2 - time1).seconds
                 if self.config.get_config()['verbose']:
-                    print("time cost: " + str(t) + "s.")
-                print("------------------------")
+                    logger.debug("time cost: " + str(t) + "s.")
+                logger.debug("------------------------")
 
             else:
                 # DML, provide the prediction using models
@@ -331,12 +343,10 @@ class SqlExecutor:
                             raise ValueError("Error parse SQL.")
 
                 else:
-                    print(
-                        "support for query without where clause is not implemented yet! abort!")
+                    logger.error("Support for query without where clause is not implemented yet! abort!")
 
                 if not self.parser.if_contain_groupby():  # if group by is not involved in the query
-                    simple_model_wrapper = self.model_catalog.model_catalog[get_pickle_file_name(
-                        mdl)]
+                    simple_model_wrapper = self.model_catalog.model_catalog[get_pickle_file_name(mdl)]
                     reg = simple_model_wrapper.reg
 
                     density = simple_model_wrapper.density
@@ -348,11 +358,11 @@ class SqlExecutor:
                                                n_total_point, x_min_value, x_max_value,
                                                self.config)
                     p, t = query_engine.predict(func, x_lb=x_lb, x_ub=x_ub)
-                    print("OK")
-                    print(p)
+                    logger.debug("OK")
+                    logger.debug("predicted: " + str(p))
                     if self.config.get_config()['verbose']:
-                        print("time cost: " + str(t))
-                    print("------------------------")
+                        logger.debug("time cost: " + str(t))
+                    logger.debug("------------------------")
                     return p, t
 
                 else:  # if group by is involved in the query
@@ -375,9 +385,9 @@ class SqlExecutor:
                             predictions[model_wrapper.groupby_value] = query_engine.predict(
                                 func, x_lb=x_lb, x_ub=x_ub)[0]
 
-                        print("OK")
+                        logger.debug("OK")
                         for key, item in predictions.items():
-                            print(key, item)
+                            logger.debug(key, item)
 
                     else:  # use mdn models to give the predictions.
                         start = datetime.now()
@@ -390,17 +400,17 @@ class SqlExecutor:
                             if not self.config.get_config()["b_use_gg"]:
                                 qe_mdn = MdnQueryEngine(self.model_catalog.model_catalog[mdl + ".pkl"],
                                                         self.config)
-                                print("OK")
+                                logger.debug("OK")
                                 qe_mdn.predict_one_pass(func, x_lb=x_lb, x_ub=x_ub,
                                                         n_jobs=n_jobs, )  # result2file=result2file,n_division=n_division
                             else:
                                 qe_mdn = self.model_catalog.model_catalog[mdl + ".pkl"]
                                 # qe_mdn = MdnQueryEngine(qe_mdn, self.config)
-                                print("OK")
+                                logger.debug("OK")
                                 qe_mdn.predicts(func, x_lb=x_lb, x_ub=x_ub,
                                                 n_jobs=n_jobs, )  # result2file=result2file,n_division=n_division, b_print_to_screen=True
                         else:
-                            print("OK")
+                            logger.debug("OK")
                             if not self.config.get_config()["b_use_gg"]:
                                 # print("x_categorical_values",
                                 #       x_categorical_values)
@@ -414,8 +424,8 @@ class SqlExecutor:
                     if self.config.get_config()['verbose']:
                         end = datetime.now()
                         time_cost = (end - start).total_seconds()
-                        print("Time cost: %.4fs." % time_cost)
-                    print("------------------------")
+                        logger.debug("Time cost: %.4fs." % time_cost)
+                    logger.debug("------------------------")
 
     def set_table_headers(self, strs, split_char=","):
         if strs is None:

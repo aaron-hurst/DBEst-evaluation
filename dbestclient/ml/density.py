@@ -10,20 +10,32 @@ from dbestclient.ml.mdn import RegMdn
 
 
 class DBEstDensity:
-    def __init__(self,config, kernel=None):
+    def __init__(self, config, kernel=None):
         if kernel is None:
-            self.kernel = 'gaussian'
+            self.kernel = "gaussian"
         self.kde = None
-        self.config=config
+        self.config = config
 
-    def fit(self, x, groupby_attribute=None,density_type=None):
-        if self.config["density_type"]  not in ['mdn','kde']:
+    def fit(self, x, groupby_attribute=None, density_type=None):
+        if self.config["density_type"] not in ["mdn", "kde"]:
             raise Exception("The density type must be mdn or kde!")
         if density_type is None:
             density_type = self.config["density_type"]
 
-        if density_type == 'kde':
+        if density_type == "kde":
             self.kde = KernelDensity(kernel=self.kernel).fit(x)
-        if density_type == 'mdn' and groupby_attribute is not None:
-            self.kde = RegMdn(dim_input=2).fit(groupby_attribute, x,num_epoch=self.config["num_epoch"],num_gaussians=self.config["num_gaussians"])
+        elif density_type == "mdn" and groupby_attribute is not None:
+            self.kde = RegMdn(dim_input=2, device=self.config["device"]).fit(
+                groupby_attribute,
+                x,
+                num_epoch=self.config["num_epoch"],
+                num_gaussians=self.config["num_gaussians"],
+            )
+        else:
+            self.kde = RegMdn(dim_input=1, device=self.config["device"]).fit(
+                x,
+                x,
+                num_epoch=self.config["num_epoch"],
+                num_gaussians=self.config["num_gaussians"],
+            )
         return self.kde

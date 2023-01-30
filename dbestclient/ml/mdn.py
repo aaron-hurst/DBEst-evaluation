@@ -104,7 +104,11 @@ def gaussian_probability(sigma, mu, data):
         probabilities (BxG): The probability of each point in the probability
             of the distribution in the corresponding sigma/mu index.
     """
-    data = data.unsqueeze(1).expand_as(sigma)
+    # NOTE: original code: 
+    # data = data.unsqueeze(1).expand_as(sigma)
+    # This produced an error as data.unsqueeze has more dimensions than sigma.
+    # Thus, I have tried removing unsqueeze
+    data = data.expand_as(sigma)
     ret = 1.0 / math.sqrt(2 * math.pi) * torch.exp(-0.5 *
                                                    ((data - mu) / sigma) ** 2) / sigma
     return torch.prod(ret, 2)
