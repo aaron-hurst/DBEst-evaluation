@@ -4,13 +4,13 @@
 # the University of Warwick
 # Q.Ma.2@warwick.ac.uk
 
+from multiprocessing import set_start_method as set_start_method_cpu
+from time import perf_counter
+import csv
+import logging
 import os
 import os.path
-import logging
 import warnings
-from datetime import datetime
-from multiprocessing import set_start_method as set_start_method_cpu
-import csv
 
 import dill
 import numpy as np
@@ -68,7 +68,7 @@ class SqlExecutor:
     def init_model_catalog(self):
         # search the warehouse, and add all available models.
         n_model = 0
-        t1 = datetime.now()
+        t1 = perf_counter()
         for file_name in os.listdir(self.config.get_config()["warehousedir"]):
             # load simple models
             if file_name.endswith(self.runtime_config["model_suffix"]):
@@ -86,10 +86,10 @@ class SqlExecutor:
                 n_model += 1
 
         if n_model > 0:
-            logger.info("Loaded " + str(n_model) + " models.", end=" ")
+            logger.info("Loaded " + str(n_model) + " models.")
             if self.runtime_config["b_show_latency"]:
-                t2 = datetime.now()
-                logger.debug("time cost ", (t2 - t1).total_seconds(), "s")
+                t2 = perf_counter()
+                logger.debug("time cost ", t2 - t1, "s")
             else:
                 logger.debug()
 
@@ -107,7 +107,7 @@ class SqlExecutor:
                 )
         else:
             if self.runtime_config["v"]:
-                logger.info("Local mode is on, as no slaves are provided.")
+                logger.debug("Local mode is on, as no slaves are provided.")
 
     def execute(self, sql):
         # prepare the parser
@@ -214,7 +214,7 @@ class SqlExecutor:
                     )
 
                 logger.info("Start creating model: " + mdl)
-                time1 = datetime.now()
+                time1 = perf_counter()
                 if self.save_sample:
                     sampler.make_sample(
                         original_data_file,
@@ -733,7 +733,7 @@ class SqlExecutor:
 
                             else:
                                 raise TypeError("unexpected sampling method.")
-                time2 = datetime.now()
+                time2 = perf_counter()
                 t = (time2 - time1).seconds
                 if self.runtime_config["b_show_latency"]:
                     logger.debug("time cost: " + str(t) + "s.")
@@ -744,7 +744,7 @@ class SqlExecutor:
                 return
 
             elif sql_type == "select":  # process SELECT query
-                start_time = datetime.now()
+                start_time = perf_counter()
                 predictions = None
                 # DML, provide the prediction using models
                 mdl = self.parser.get_from_name()
@@ -754,7 +754,7 @@ class SqlExecutor:
                     self.parser.if_where_exists()
                     and self.parser.get_dml_where_categorical_equal_and_range()[2]
                 ):
-                    print("OK")
+                    logger.debug("OK")
                     where_conditions = (
                         self.parser.get_dml_where_categorical_equal_and_range()
                     )
@@ -833,12 +833,11 @@ class SqlExecutor:
                     #     out = 
                     #     f.write(predictions.to_string(index=False))  # max_rows=5
 
+                time_cost = perf_counter() - start_time
                 if self.runtime_config["b_show_latency"]:
-                    end_time = datetime.now()
-                    time_cost = (end_time - start_time).total_seconds()
                     logger.debug("Time cost: %.4fs." % time_cost)
                 logger.debug("------------------------")
-                return predictions
+                return predictions, time_cost
 
             elif sql_type == "set":  # process SET query
                 if self.last_config:
@@ -918,13 +917,13 @@ class SqlExecutor:
                     return False
             elif sql_type == "show":
                 print("OK")
-                t_start = datetime.now()
+                t_start = perf_counter()
                 if self.runtime_config["b_print_to_screen"]:
                     for key in self.model_catalog.model_catalog:
                         print(key.replace(self.runtime_config["model_suffix"], ""))
                 if self.runtime_config["v"]:
-                    t_end = datetime.now()
-                    time_cost = (t_end - t_start).total_seconds()
+                    t_end = perf_counter()
+                    time_cost = t_end - t_start
                     print("Time cost: %.4fs." % time_cost)
             else:
                 print("Unsupported query type, please check your SQL.")

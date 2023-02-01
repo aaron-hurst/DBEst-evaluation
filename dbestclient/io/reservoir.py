@@ -14,6 +14,7 @@ from __future__ import division, print_function, with_statement
 from math import log
 from random import random
 from sys import stderr, stdin
+import logging
 
 import numpy as np
 import pandas as pd
@@ -21,10 +22,7 @@ from statsmodels.compat.pandas import frequencies
 
 from dbestclient.tools.variables import UseCols
 
-# try:
-#     range = xrange
-# except NameError:
-#     pass
+logger = logging.getLogger(__name__)
 
 
 class ReservoirSampling:
@@ -56,7 +54,7 @@ class ReservoirSampling:
         )
         f.close()
 
-        print("Reading data file...")
+        logger.debug("Reading data file...")
         with open(file, "r") as data:
             if verbose:
 
@@ -227,7 +225,7 @@ class ReservoirSampling:
                 #     self.sampledf[col] = pd.to_numeric(
                 #         self.sampledf[col], errors='coerce')
                 #     print(self.sampledf)
-                #     print("*"*80)
+                #     logger.debug("*"*80)
                 # convert the group by column to string
 
                 for col in columns_categorial:
@@ -316,7 +314,7 @@ class ReservoirSampling:
         return ft
 
     def get_groupby_frequency_and_data(self):
-        print("get frequency info from data....")
+        logger.debug("get frequency info from data....")
         # print("self.sampledf", self.sampledf)
         total_frequency = {}
         data = {}
@@ -380,7 +378,7 @@ class ReservoirSampling:
                         frequency[key1] = count
                         # print(key1, count)
                     # print("grp", grp, frequency)
-                    # print("*"*100)
+                    # logger.debug("*"*100)
                     # print()
                 else:
                     # print("start distinct sampling")

@@ -4,6 +4,7 @@
 # the University of Warwick
 # Q.Ma.2@warwick.ac.uk
 
+import logging
 import math
 from collections import Counter
 from datetime import datetime
@@ -39,6 +40,8 @@ from torch.multiprocessing import Pool as PoolGPU
 #     print("Fail to set start method as spawn for pytorch multiprocessing, " +
 #           "use default in advance. (see queryenginemdn "
 #           "for more info.)")
+
+logger = logging.getLogger(__name__)
 
 
 class GenericQueryEngine:
@@ -95,7 +98,7 @@ class MdnQueryEngineNoRange(GenericQueryEngine):
         else:
             config = self.config.copy()
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
                 gbs, None, ys, runtime_config,usecols=usecols)
         return self
@@ -198,7 +201,7 @@ class MdnQueryEngineRangeNoCategorical(GenericQueryEngine):
         else:
             config = self.config.copy()
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
                 gbs_data, xs_data, ys_data, runtime_config,usecols=usecols)
 
@@ -248,7 +251,7 @@ class MdnQueryEngineRangeNoCategorical(GenericQueryEngine):
                 #     print(key, self.n_total_point[key])
                 #     if cnt==10:
                 #         break
-                # print("*"*100)
+                # logger.debug("*"*100)
 
                 # new_ft={}
                 # with open("/home/quincy/Documents/workspace/DBEstClient/dbestwarehouse/large_group_counts.csv", "r") as f:
@@ -266,7 +269,7 @@ class MdnQueryEngineRangeNoCategorical(GenericQueryEngine):
                 #     print(key, self.n_total_point[key])
                 #     if cnt==10:
                 #         break
-                # print("*"*100)
+                # logger.debug("*"*100)
 
                 # exit()
 
@@ -400,7 +403,7 @@ class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
         else:
             config = self.config.copy()
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("training regression...")
 
             # print("xs", xs)
             # print("ys", ys)
@@ -650,7 +653,7 @@ class MdnQueryEngine(GenericQueryEngine):
         # result2file = self.config.get_config()["result2file"]
 
         if func.lower() not in ("count", "sum", "avg", "var"):
-            raise ValueError("function not supported: "+func)
+            raise NotImplementedError("function not supported: "+func)
         if groups is None:  # provide predictions for all groups.
             groups = self.groupby_values
 
@@ -689,7 +692,7 @@ class MdnQueryEngine(GenericQueryEngine):
                 #     print(key, self.n_total_point[key])
                 #     if cnt==10:
                 #         break
-                # print("*"*100)
+                # logger.debug("*"*100)
 
                 # new_ft={}
                 # with open("/home/quincy/Documents/workspace/DBEstClient/dbestwarehouse/large_group_counts.csv", "r") as f:
@@ -707,7 +710,7 @@ class MdnQueryEngine(GenericQueryEngine):
                 # #     print(key, self.n_total_point[key])
                 # #     if cnt==10:
                 # #         break
-                # # print("*"*100)
+                # # logger.debug("*"*100)
 
 
                 # new_ft={}
@@ -831,7 +834,7 @@ class MdnQueryEngine(GenericQueryEngine):
             results = prepare_var(
                 self.kde, groups=groups, runtime_config=runtime_config)  # {"group":999.99}
         else:
-            raise TypeError("unexpected aggregated.")
+            raise NotImplementedError("unexpected aggregation.")
         runtime_config["b_print_to_screen"] = b_print_to_screen
         if runtime_config["b_print_to_screen"]:
             for key in results:
@@ -935,7 +938,7 @@ class MdnQueryEngineGoGs():
             # print("sorted_group_keys", sorted_group_keys)
             self.group_keys_chunk = [sorted_group_keys[i:i + n_per_group] for i in
                                      range(0, len(sorted_group_keys), n_per_group)]
-            # print("*"*100)
+            # logger.debug("*"*100)
             # print("self.group_keys_chunk", self.group_keys_chunk)
 
             groups_chunk = [pd.concat([grouped.get_group(tuple(
@@ -945,7 +948,7 @@ class MdnQueryEngineGoGs():
             # #                 for sub_group in sub.split(",") for sub in self.group_keys_chunk]
             # for sub_group in self.group_keys_chunk:
             #     for grp in sub_group:
-            #         print("*"*100)
+            #         logger.debug("*"*100)
             #         print(grp)
             #         print(grp.split(","))
             #         print(grouped.groups.keys())
@@ -1306,7 +1309,7 @@ class MdnQueryEngineXCategoricalOneModel(GenericQueryEngine):
                 gbs, xs, runtime_config)
 
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
                 gbs, xs, ys, runtime_config,usecols=usecols)
             # kdeModelWrapper = KdeModelTrainer(

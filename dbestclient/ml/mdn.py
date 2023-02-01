@@ -111,7 +111,8 @@ def gaussian_probability(sigma, mu, data):
     # data = data.unsqueeze(1).expand_as(sigma)
     # This produced an error as data.unsqueeze has more dimensions than sigma.
     # Thus, I have tried removing unsqueeze
-    data = data.expand_as(sigma)
+    # UPDATE: with the "demo" branch code, I can revert this.
+    data = data.unsqueeze(1).expand_as(sigma)
     ret = (
         1.0
         / math.sqrt(2 * math.pi)
@@ -295,7 +296,7 @@ class GenericMdn:
 class RegMdnGroupBy:
     """This class implements the regression using mixture density network for group by queries."""
 
-    def __init__(self, config, b_normalize_data=True):
+    def __init__(self, config, b_normalize_data=True, b_store_training_data=False):
         # if b_store_training_data:
         self.x_points = None  # query range
         self.y_points = None  # aggregate value
@@ -314,7 +315,7 @@ class RegMdnGroupBy:
         self.last_sigma = None
         self.config = config
         self.b_normalize_data = b_normalize_data
-        self.b_store_training_data=False
+        self.b_store_training_data=b_store_training_data
         self.enc = None
 
     def fit(
@@ -371,7 +372,11 @@ class RegMdnGroupBy:
 
                 if USE_SKIP_GRAM:
                     self.enc = SkipGram().fit(
-                        z_group, x_points, y_points, usecols=usecols,dim=self.config.config["n_embedding_dim"],NG=len(z_group[0]),
+                        z_group,
+                        x_points,
+                        y_points,
+                        usecols=usecols,dim=self.config.config["n_embedding_dim"],
+                        NG=len(z_group[0]),
                     )
                 else:
                     sentences = columns2sentences(z_group, x_points, y_points)
@@ -395,7 +400,7 @@ class RegMdnGroupBy:
                 # print(z_group)
                 # print(type(z_group))
                 # exit()
-                print("embedding inference...")
+                logger.debug("embedding inference...")
                 zs_encoded = self.enc.predicts(z_group)
                 # print("zs_encoded")
                 # print(zs_encoded)
@@ -403,7 +408,7 @@ class RegMdnGroupBy:
                 # exit()
                 # raise TypeError("embedding is not supported yet.")
 
-            print("start normalizing data...")
+            logger.debug("start normalizing data...")
             if self.b_normalize_data:
                 if x_points is not None:
                     self.meanx = (np.max(x_points) + np.min(x_points)) / 2
@@ -419,9 +424,9 @@ class RegMdnGroupBy:
                     [normalize(i, self.meany, self.widthy) for i in y_points]
                 )
             if self.b_store_training_data:
-                print("xpoints are saved.")
+                logger.debug("xpoints are saved.")
                 if x_points is not None:
-                    print("xpoints are saved.")
+                    logger.debug("xpoints are saved.")
                     self.x_points = x_points
                 self.y_points = y_points
                 self.z_points = z_group
@@ -431,7 +436,7 @@ class RegMdnGroupBy:
                 self.y_points = None
                 self.z_points = None
             
-            print("transform data from MDN training...")
+            logger.debug("transform data from MDN training...")
             if encoder in ["onehot", "binary", "embedding"]:
                 if x_points is not None:
                     xs_encoded = x_points[:, np.newaxis]
@@ -463,7 +468,7 @@ class RegMdnGroupBy:
             # print(tensor_ys)
             # exit()
             # print(y_points[:5])
-            print("finish transforming data from MDN training...")
+            logger.debug("finish transforming data from MDN training...")
 
             # move variables to cuda
             tensor_xzs = tensor_xzs.to(device)
@@ -550,7 +555,7 @@ class RegMdnGroupBy:
                     optimizer.step()
                 my_lr_scheduler.step()
             self.model.eval()
-            print("Finish regression training.")
+            logger.debug("Finish regression training.")
             return self
         else:
             return self.fit_grid_search(z_group, x_points, y_points, runtime_config)
@@ -593,7 +598,7 @@ class RegMdnGroupBy:
 
         self.b_store_training_data = True
         for para in combs:
-            print("Grid search for parameter set :", para)
+            logger.debug("Grid search for parameter set :", para)
             config = self.config.copy()
             config.config["n_gaussians_reg"] = para["gaussian_reg"]
             # config.config["n_gaussians_density"] = para['gaussian_density']
@@ -607,10 +612,10 @@ class RegMdnGroupBy:
             )
             errors.append(instance.score(runtime_config))
 
-        print("errors for grid search ", errors)
+        logger.debug("errors for grid search ", errors)
         index = errors.index(min(errors))
         para = combs[index]
-        print("Finding the best configuration for the network", para)
+        logger.debug("Finding the best configuration for the network", para)
 
         self.b_store_training_data = False
         # release space
@@ -632,7 +637,7 @@ class RegMdnGroupBy:
         instance = RegMdnGroupBy(config).fit(
             z_group, x_points, y_points, runtime_config, lr=para["lr"]
         )
-        print("-" * 80)
+        logger.debug("-" * 80)
         return instance
 
     def predict(
@@ -909,7 +914,7 @@ class RegMdn:
                 b_normalize=b_normalize,
             )
         else:
-            print("dimension mismatch")
+            logger.error("dimension mismatch")
             sys.exit(0)
 
     def predict(self, xs, runtime_config, b_show_plot=False):
@@ -921,7 +926,7 @@ class RegMdn:
                 xs[:, 0], xs[:, 1], runtime_config, b_show_plot=b_show_plot
             )
         else:
-            print("dimension mismatch")
+            logger.error("dimension mismatch")
             sys.exit(0)
 
     def fit3d(
@@ -1518,7 +1523,7 @@ class KdeMdn:
                 my_lr_scheduler.step()
             # turn the model to eval mode.
             self.model.eval()
-            print("finish mdn training...")
+            logger.debug("finish mdn training...")
             return self
         else:  # grid search
             # , b_normalize=b_normalize

@@ -1,3 +1,4 @@
+import logging
 import multiprocessing
 
 import numpy as np
@@ -8,6 +9,8 @@ from gensim.models import Word2Vec
 # from numpy.core.defchararray import startswith
 
 # https://towardsdatascience.com/word-embedding-with-word2vec-and-fasttext-a209c1d3e12c
+
+logger = logging.getLogger(__name__)
 
 
 class SkipGram:
@@ -31,7 +34,6 @@ class SkipGram:
         min_count=0,
         negative=30,
         iters=30,
-
         workers=-1,
         NG=1,
         b_reg=True,
@@ -112,16 +114,16 @@ class SkipGram:
         workers = multiprocessing.cpu_count() if workers == -1 else 1
         model = Word2Vec(
             sentences,
-            size=int(self.dim / NG),
+            vector_size=int(self.dim / NG),  # changed parameter name to match API
             window=window,
             min_count=min_count,
             negative=negative,
-            iter=iters,
+            epochs=iters,  # changed to match API
             workers=workers,
         )
 
         # word_vectors = model.wv  # Matix of model
-        vocab = model.wv.vocab  # Vocabulary
+        vocab = model.wv.key_to_index  # Vocabulary, changed to match newer API
         #self.dim = dim * len(self.header_categorical)
         # print("dim is", self.dim)
         # print(model["citylondon"])
@@ -133,7 +135,7 @@ class SkipGram:
                 if word.startswith(head):
                     self.embeddings[word] = model.wv[word]
         # print(self.embeddings.keys())
-        print("finish training embedding.")
+        logger.debug("finish training embedding.")
         return self
 
     def predicts(self, keys):

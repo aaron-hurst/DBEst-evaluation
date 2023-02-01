@@ -29,7 +29,7 @@ RUNTIME_CONF = {
     "result2file": None,
     # integral related parameters
     "b_use_integral": False,
-    "n_division": 20,  # 20
+    "n_division": 20,
     # integral package related parameters
     "epsabs": 10.0,
     "epsrel": 0.1,

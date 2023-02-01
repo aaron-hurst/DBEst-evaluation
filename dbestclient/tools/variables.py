@@ -71,8 +71,11 @@ class UseCols:
             columns_as_continous = columns_as_continous + \
                 self.usecols['x_continous']
 
-        columns_as_categorical = self.usecols["x_categorical"] + \
-            self.usecols["gb"]
+        if self.usecols["gb"]:
+            columns_as_categorical = self.usecols["x_categorical"] + self.usecols["gb"]
+        else:
+            columns_as_categorical = self.usecols["x_categorical"]
+
         # print("columns_as_continous", columns_as_continous)
         # print("columns_as_categorical", columns_as_categorical)
 

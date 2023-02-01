@@ -155,13 +155,13 @@ def run_experiment(
                 query_str = (
                     f"select {aggregation}({aggregation_col_name}) "
                     f"from {model_name} "
-                    f"where {predicate_col_name} "
-                    f"between {predicate[0]} and {predicate[1]}"
+                    f"where {predicate[0]} < {predicate_col_name} < {predicate[1]}"
                 )
                 try:
-                    predicted_value, t_estimate = sql_executor.execute(query_str)
+                    predicted_values, t_estimate = sql_executor.execute(query_str)
                 except NotImplementedError:
                     continue
+                predicted_value = predicted_values.iloc[0][1]  # extract prediction
 
                 # Exact value
                 exact = aggregate(data.loc[mask][aggregation_col_name], aggregation)
@@ -276,14 +276,16 @@ def main():
     # Run a single experiment
     # run_experiment("kaggle", "aquaponics_all", 1000)
     # run_experiment("kaggle", "smart_building_system_all", 1000)
-    # run_experiment("kaggle", "temperature_iot_on_gcp_100k", 1000)
+    run_experiment("kaggle", "temperature_iot_on_gcp_100k", 1000)
     # run_experiment("uci", "household_power_consumption", 1000)
     # run_experiment("uci", "gas_sensor_home_activity", 1000)
 
-    run_experiment("kaggle", "light_detection", 1000, testing_flag=True)
+    # run_experiment("kaggle", "light_detection", 1000, testing_flag=True)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=LOGGING_LEVEL, format=LOG_FORMAT)
     logger = logging.getLogger("main")
+    logging.getLogger('gensim.models.word2vec').setLevel(logging.WARNING)
+    logging.getLogger('gensim.utils').setLevel(logging.WARNING)
     main()

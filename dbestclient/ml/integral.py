@@ -66,7 +66,7 @@ def approx_integrate(func: callable, x_lb: float, x_ub: float, n_division=20) ->
 #     return {}
 
 
-def prepare_reg_density_data(density, x_lb: float, x_ub: float, groups: list, reg,  runtime_config):
+def prepare_reg_density_data(density, x_lb: float, x_ub: float, groups: list, reg, runtime_config):
     # prepare_reg_density_data(density: KdeMdn, x_lb: float, x_ub: float, groups: list, reg: RegMdnGroupBy = None,  n_division: int = 20):
     n_division = runtime_config["n_division"]
     x_points, step = np.linspace(x_lb, x_ub, n_division, retstep=True)
