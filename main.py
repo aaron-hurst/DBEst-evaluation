@@ -81,7 +81,9 @@ def aggregate(data, agg):
         raise NotImplementedError("Aggregation {:s} not available".format(agg))
 
 
-def run_experiment(data_source, dataset_id, sample_size, sampling_method="uniform"):
+def run_experiment(
+    data_source, dataset_id, sample_size, sampling_method="uniform", testing_flag=False
+):
     logger.info(
         "Running experiment for:"
         f"\n\tdata source:  {data_source}"
@@ -105,6 +107,8 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
         query_set,
         f"sample_size_{sample_size}",
     )
+    if testing_flag:  # append timestamp to results dir if this is just a test run
+        results_path = results_path + "_test_" + datetime.now().strftime("%Y%m%d%H%M%S")
     results_filepath = os.path.join(results_path, "results.csv")
     info_filepath = os.path.join(results_path, "info.txt")
     data, n_bytes_per_value = load_dataset(dataset_full_id, csv_path)
@@ -183,8 +187,9 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
     df["error"] = df["predicted_value"] - df["exact_value"]
     df["relative_error"] = (
         (df["error"] / df["exact_value"] * 100)
-        .replace({np.nan: 100, np.inf: np.nan, -np.inf: np.nan})
         .abs()
+        .replace({np.nan: 100, np.inf: np.nan, -np.inf: np.nan})
+        
     )
 
     # Export results
@@ -271,9 +276,11 @@ def main():
     # Run a single experiment
     # run_experiment("kaggle", "aquaponics_all", 1000)
     # run_experiment("kaggle", "smart_building_system_all", 1000)
-    run_experiment("kaggle", "temperature_iot_on_gcp_100k", 1000)
+    # run_experiment("kaggle", "temperature_iot_on_gcp_100k", 1000)
     # run_experiment("uci", "household_power_consumption", 1000)
     # run_experiment("uci", "gas_sensor_home_activity", 1000)
+
+    run_experiment("kaggle", "light_detection", 1000, testing_flag=True)
 
 
 if __name__ == "__main__":

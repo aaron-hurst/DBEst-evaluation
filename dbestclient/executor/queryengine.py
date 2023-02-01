@@ -95,7 +95,13 @@ class QueryEngine:
         def f_p(*args):
             return np.exp(self.kde.score_samples(np.array(args).reshape(1, -1)))
 
-        result = integrate.quad(f_p, x_min, x_max, epsabs=self.config.get_config()['epsabs'], epsrel=self.config.get_config()['epsrel'])[0]
+        result = integrate.quad(
+            f_p,
+            x_min,
+            x_max,
+            epsabs=self.config.get_config()['epsabs'],
+            epsrel=self.config.get_config()['epsrel'],
+        )[0]
         result = result * float(self.n_total_point)
 
         # print("Approximate COUNT: %.4f." % result)
