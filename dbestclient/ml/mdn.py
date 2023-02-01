@@ -988,6 +988,8 @@ class RegMdn():
         Returns:
             [type]: [description]
         """
+        if width == 0:
+            return np.zeros_like(x)
         return (x - mean) / width * 2
 
     def denormalize(self, x, mean, width):

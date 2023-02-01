@@ -12,11 +12,11 @@ from config import LOG_FORMAT, NAME_DELIMITER, DATA_DIR, WAREHOUSE_DIR, QUERIES_
 from schemas import DB_SCHEMAS
 
 LOGGING_LEVEL = logging.INFO
-DATA_SOURCE = "kaggle"
-DATASET_ID = "temperature_iot_on_gcp"
-QUERIES_SET = "kaggle-temperature_iot_on_gcp-N=100"
-SAMPLING_METHOD = "uniform"
-SAMPLE_SIZE = 10000
+# DATA_SOURCE = "kaggle"
+# DATASET_ID = "temperature_iot_on_gcp"
+# QUERIES_SET = "kaggle-temperature_iot_on_gcp-N=100"
+# SAMPLING_METHOD = "uniform"
+# SAMPLE_SIZE = 10000
 SAVE_SAMPLE = True
 AGGREGATIONS = [
     "COUNT",
@@ -30,7 +30,7 @@ AGGREGATIONS = [
 
 
 def load_dataset(dataset_full_id, csv_path):
-    if dataset_full_id in ["chicago-taxi_trips", "kaggle-light_detection"]:
+    if dataset_full_id in ["chicago-taxi_trips_2020", "kaggle-light_detection"]:
         df = pd.read_csv(csv_path, header=0, dtype=np.float64)
         n_bytes_per_value = 8
     else:
@@ -39,9 +39,12 @@ def load_dataset(dataset_full_id, csv_path):
     return df.dropna(), n_bytes_per_value
 
 
-def build_models(dataset_full_id, csv_path, warehouse_path):
+def build_models(
+    dataset_full_id, csv_path, warehouse_path, sample_size, sampling_method="uniform"
+):
     """Build/load models for each pair of columns and return SQL executor object."""
-    schema = DB_SCHEMAS[DATA_SOURCE][DATASET_ID]
+    data_source, dataset_id = dataset_full_id.split(NAME_DELIMITER)
+    schema = DB_SCHEMAS[data_source][dataset_id]
     sql_executor = SqlExecutor(warehouse_path, save_sample=SAVE_SAMPLE)
     n_columns = len(schema["column_names"])
     for i in range(n_columns):
@@ -51,13 +54,13 @@ def build_models(dataset_full_id, csv_path, warehouse_path):
             column_2_str = schema["column_names"][j] + " real"
             table_name = (
                 f"{dataset_full_id}_{schema['column_names'][i]}_"
-                f"{schema['column_names'][j]}_{SAMPLE_SIZE}"
+                f"{schema['column_names'][j]}_{sample_size}"
             )
             sql_create_model = (
                 f"create table "
                 f"{table_name}({column_1_str}, {column_2_str}) "
                 f"from '{csv_path}' "
-                f"method {SAMPLING_METHOD} size {SAMPLE_SIZE};"
+                f"method {sampling_method} size {sample_size};"
             )
             try:
                 sql_executor.execute(sql_create_model)
@@ -78,21 +81,29 @@ def aggregate(data, agg):
         raise NotImplementedError("Aggregation {:s} not available".format(agg))
 
 
-def main():
+def run_experiment(data_source, dataset_id, sample_size, sampling_method="uniform"):
+    logger.info(
+        "Running experiment for:"
+        f"\n\tdata source:  {data_source}"
+        f"\n\tdataset id:   {dataset_id}"
+        f"\n\tsample size:  {sample_size:,d}"
+    )
+
     # Setup
-    dataset_full_id = DATA_SOURCE + NAME_DELIMITER + DATASET_ID
-    schema = DB_SCHEMAS[DATA_SOURCE][DATASET_ID]
+    dataset_full_id = data_source + NAME_DELIMITER + dataset_id
+    query_set = dataset_full_id + NAME_DELIMITER + "N=100"
+    schema = DB_SCHEMAS[data_source][dataset_id]
     csv_path = os.path.join(DATA_DIR, "uncompressed", dataset_full_id + ".csv")
     warehouse_path = os.path.join(
-        WAREHOUSE_DIR, dataset_full_id, f"sample_size_{SAMPLE_SIZE}"
+        WAREHOUSE_DIR, dataset_full_id, f"sample_size_{sample_size}"
     )
-    queries_path = os.path.join(QUERIES_DIR, dataset_full_id, QUERIES_SET + ".csv")
+    queries_path = os.path.join(QUERIES_DIR, dataset_full_id, query_set + ".csv")
     results_path = os.path.join(
         "experiments",
         "comparisons_for_paper",
         dataset_full_id,
-        QUERIES_SET,
-        f"sample_size_{SAMPLE_SIZE}",
+        query_set,
+        f"sample_size_{sample_size}",
     )
     results_filepath = os.path.join(results_path, "results.csv")
     info_filepath = os.path.join(results_path, "info.txt")
@@ -110,7 +121,7 @@ def main():
     # e.g. "method uniform size 1000" does uniform sampling with 1000 samples
     t_modelling_start = perf_counter()
     logger.info("Creating data model...")
-    sql_executor = build_models(dataset_full_id, csv_path, warehouse_path)
+    sql_executor = build_models(dataset_full_id, csv_path, warehouse_path, sample_size)
     t_modelling = perf_counter() - t_modelling_start
 
     # Run queries
@@ -133,7 +144,7 @@ def main():
             aggregation_col_name = schema["column_names"][aggregation_col]
             model_name = (
                 f"{dataset_full_id}_{aggregation_col_name}"
-                f"_{predicate_col_name}_{SAMPLE_SIZE}"
+                f"_{predicate_col_name}_{sample_size}"
             )
             for aggregation in AGGREGATIONS:
                 # Predicated value
@@ -157,6 +168,7 @@ def main():
                         "query_id": i,
                         "predicate_column": predicate_col,
                         "aggregation_column": aggregation_col,
+                        "specificity": query.specificity,
                         "aggregation": aggregation,
                         "latency": t_estimate,
                         "predicted_value": predicted_value,
@@ -191,7 +203,9 @@ def main():
     )
     logger.info(
         "Relative error by accregate:\n%s",
-        df.groupby("aggregation")[["relative_error"]].describe(percentiles=[0.5, 0.75, 0.95]).round(3),
+        df.groupby("aggregation")[["relative_error"]]
+        .describe(percentiles=[0.5, 0.75, 0.95])
+        .round(3),
     )
 
     # Get storage information
@@ -215,11 +229,11 @@ def main():
     integration_limit = sql_executor.config.get_parameter("limit")
     with open(info_filepath, "w", newline="") as f:
         f.write(f"------------- Parameters -------------\n")
-        f.write(f"DATA_SOURCE          {DATA_SOURCE}\n")
-        f.write(f"DATASET_ID           {DATASET_ID}\n")
-        f.write(f"QUERIES_SET          {QUERIES_SET}\n")
-        f.write(f"SAMPLING_METHOD      {SAMPLING_METHOD}\n")
-        f.write(f"SAMPLE_SIZE          {SAMPLE_SIZE:,d}\n")
+        f.write(f"DATA_SOURCE          {data_source}\n")
+        f.write(f"DATASET_ID           {dataset_id}\n")
+        f.write(f"QUERIES_SET          {query_set}\n")
+        f.write(f"SAMPLING_METHOD      {sampling_method}\n")
+        f.write(f"SAMPLE_SIZE          {sample_size:,d}\n")
         f.write(f"N_EPOCH              {n_epoch:,d}\n")
         f.write(f"N_GAUSSIANS          {n_gaussians:,d}\n")
         f.write(f"N_MDN_LAYER_NODE     {n_mdn_layer_node:,d}\n")
@@ -244,6 +258,22 @@ def main():
         f.write(f"Original data        {s_original:,d} bytes\n")
         f.write(f"Models               {s_models:,d} bytes\n")
         f.write(f"Models (%)           {s_models / s_original * 100:.2f} %\n")
+    return
+
+
+def main():
+    # Run all experiments (all datasets and multiple sample sizes)
+    # for data_source in DB_SCHEMAS:
+    #     for dataset_id in DB_SCHEMAS[data_source]:
+    #         for sample_size in [1000]:  # try 10000 later for at least some datasets
+    #             run_experiment(data_source, dataset_id, sample_size)
+
+    # Run a single experiment
+    # run_experiment("kaggle", "aquaponics_all", 1000)
+    # run_experiment("kaggle", "smart_building_system_all", 1000)
+    run_experiment("kaggle", "temperature_iot_on_gcp_100k", 1000)
+    # run_experiment("uci", "household_power_consumption", 1000)
+    # run_experiment("uci", "gas_sensor_home_activity", 1000)
 
 
 if __name__ == "__main__":

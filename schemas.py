@@ -79,7 +79,7 @@ DB_SCHEMAS = {
         },
     },
     "kaggle": {
-        "aquapolics_all": {
+        "aquaponics_all": {
             "column_names": [
                 "entry_id",
                 "temperature (C)",
