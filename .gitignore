@@ -13,6 +13,9 @@ experiments/huawei/
 MNIST_data/
 notebook/
 resources/
+experiments/results/stratified/
+*.sample
+.ipynb_checkpoints/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -5,20 +5,31 @@
 # Q.Ma.2@warwick.ac.uk
 
 import math
+from collections import Counter
 from datetime import datetime
+from multiprocessing import Pool as PoolCPU
+from multiprocessing.pool import ThreadPool
 from operator import itemgetter
 
 import dill
 import numpy as np
 import pandas as pd
-from scipy import integrate
-from torch.multiprocessing import Pool, set_start_method
-
 # from dbestclient.io.sampling import DBEstSampling
 from dbestclient.ml.integral import (approx_avg, approx_count,
                                      approx_integrate, approx_sum,
-                                     prepare_reg_density_data)
+                                     prepare_reg_density_data, prepare_var)
+from dbestclient.ml.mdn import KdeMdn, RegMdnGroupBy
 from dbestclient.ml.modeltrainer import KdeModelTrainer
+from dbestclient.socket import app_client
+from dbestclient.tools.running_parameters import shrink_runtime_config
+from scipy import integrate
+from torch.multiprocessing import Pool as PoolGPU
+
+# from torch.multiprocessing import set_start_method
+
+
+# from torch.multiprocessing import Pool, set_start_method
+
 
 # from dbestclient.tools.dftools import get_group_count_from_summary_file
 
@@ -30,8 +41,443 @@ from dbestclient.ml.modeltrainer import KdeModelTrainer
 #           "for more info.)")
 
 
-class MdnQueryEngine:
-    def __init__(self, kdeModelWrapper, config=None, b_use_integral=False):
+class GenericQueryEngine:
+    def __init__(self):
+        self.mdl_name = None
+
+    def serialize2warehouse(self, warehouse, runtime_config):
+        with open(warehouse + '/' + self.mdl_name + runtime_config["model_suffix"], 'wb') as f:
+            dill.dump(self, f)
+
+    def init_pickle_file_name(self, runtime_config):
+        return self.mdl_name+runtime_config["model_suffix"]
+
+    def fit(self, mdl_name: str, origin_table_name: str, data: dict, total_points: dict, usecols: dict, runtime_config: dict):
+        pass
+
+    def predicts(self, func: str, x_lb: float, x_ub: float, x_categorical_conditions, runtime_config, groups: list = None, filter_dbest=None):
+        pass
+
+
+class MdnQueryEngineNoRange(GenericQueryEngine):
+    def __init__(self,  config):
+        super().__init__()
+        self.n_total_point = None
+        self.config = config
+        self.runtime_config = None
+        self.groupby_values = None
+        self.usecols = None
+        self.reg = None
+
+    def fit(self, mdl_name: str, origin_table_name: str, data: dict, total_points: dict, usecols: dict, runtime_config: dict):
+        if runtime_config['v']:
+            print("fit MdnQueryEngineNoRange: "+mdl_name+"...")
+        self.mdl_name = mdl_name
+        self.n_total_point = total_points
+        self.runtime_config = runtime_config
+        self.groupby_values = list(total_points.keys())
+        self.usecols = usecols
+        self.reg = None
+
+        self.x_categorical_columns = usecols["x_categorical"]
+        self.group_by_columns = usecols['gb']
+
+        gbs = data[usecols['gb']].values
+        ys = data[usecols['y'][0]].values.reshape(1, -1)[0]
+
+        # # configuration-related parameters.
+        # device = runtime_config["device"]
+        # encoding = self.config.get_config()["encoder"]
+        # b_grid_search = self.config.get_config()["b_grid_search"]
+
+        if self.config.config['b_use_gg']:
+            raise ValueError("Method not implemented.")
+        else:
+            config = self.config.copy()
+            if runtime_config['v']:
+                print("training regression...")
+            self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
+                gbs, None, ys, runtime_config,usecols=usecols)
+        return self
+
+    def predicts(self, func: str, x_lb: float, x_ub: float, x_categorical_conditions, runtime_config, groups: list = None, filter_dbest=None):
+        b_print_to_screen = runtime_config["b_print_to_screen"]
+        result2file = runtime_config["result2file"]
+        if "slaves" in runtime_config:
+            if runtime_config["slaves"].size() == 0:
+                n_jobs = runtime_config["n_jobs"]
+            else:
+                n_jobs = runtime_config["slaves"].size()
+        else:
+            n_jobs = runtime_config["n_jobs"]
+
+        if func.lower() not in ("count", "sum", "avg", "var"):
+            raise ValueError("function not supported: "+func)
+        if groups is None:  # provide predictions for all groups.
+            groups = self.groupby_values
+
+        if self.config.get_config()["accept_filter"]:
+            print("not implemented yet")
+            return
+
+        if func.lower() not in ("count", "sum", "avg", "var"):
+            raise ValueError("function not supported: "+func)
+        if groups is None:  # provide predictions for all groups.
+            groups = self.groupby_values
+
+        if self.config.get_config()["accept_filter"]:
+            print("not implemented yet")
+            return
+
+        if func.lower() in ["count", "sum", "avg"]:
+            if n_jobs == 1:
+                groups_name = list(self.n_total_point.keys())
+                # groups_value = list(self.n_total_point.values())
+                if func.lower() == "count":
+                    result = self.n_total_point
+                elif func.lower() == "sum":
+                    result = self.reg.predict(
+                        groups_name, None, runtime_config)
+                    result = {g: res*self.n_total_point[g] for res,
+                              g in zip(result, groups_name)}
+                elif func.lower() == "avg":
+                    result = self.reg.predict(
+                        groups_name, None, runtime_config)
+                    result = {key: val for key, val in zip(
+                        groups_name, result)}
+
+                else:
+                    raise TypeError("wrong aggregate!")
+                # results = dict(zip(groups, preds))
+                result = pd.DataFrame(result.items(), columns=[self.usecols['gb'] +
+                                                               [self.usecols['y'][0]]])
+                return result
+
+            else:
+                print("parallel is not implemented yet.")
+                return
+
+
+class MdnQueryEngineRangeNoCategorical(GenericQueryEngine):
+    def __init__(self,  config):
+        super().__init__()
+        self.n_total_point = None
+        self.config = config
+        self.runtime_config = None
+        self.groupby_values = None
+        self.usecols = None
+        self.reg = None
+        self.kde = None
+
+    def fit(self, mdl_name: str, origin_table_name: str, gbs_data, xs_data, ys_data, total_points: dict, usecols: dict, runtime_config: dict):
+        if runtime_config['v']:
+            print("fit MdnQueryEngineRangeNoCategorical: "+mdl_name+"...")
+        self.mdl_name = mdl_name
+        self.n_total_point = total_points
+        self.runtime_config = runtime_config
+        self.groupby_values = list(total_points.keys())
+        # print("total_points",total_points)
+        self.usecols = usecols
+        self.density_column = usecols["x_continous"][0]
+        # print("self.density_column", self.density_column)
+        # self.reg = None
+
+        # self.x_categorical_columns = usecols["x_categorical"]
+        # self.group_by_columns = usecols['gb']
+
+        # gbs = data[usecols['gb']].values
+        # ys = data[usecols['y'][0]].values.reshape(1, -1)[0]
+
+        # # configuration-related parameters.
+        # device = runtime_config["device"]
+        # encoding = self.config.get_config()["encoder"]
+        # b_grid_search = self.config.get_config()["b_grid_search"]
+
+        if self.config.config['b_use_gg']:
+            raise ValueError("Method not implemented.")
+        else:
+            config = self.config.copy()
+            if runtime_config['v']:
+                print("training regression...")
+            self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
+                gbs_data, xs_data, ys_data, runtime_config,usecols=usecols)
+
+            if runtime_config['v']:
+                print("training density...")
+            self.kde = KdeMdn(config, b_store_training_data=False).fit(
+                gbs_data, xs_data, runtime_config)
+        return self
+
+    def predicts(self, func: str, x_lb: float, x_ub: float, x_categorical_conditions, runtime_config, groups: list = None, filter_dbest=None):
+        b_print_to_screen = runtime_config["b_print_to_screen"]
+        result2file = runtime_config["result2file"]
+        if "slaves" in runtime_config:
+            if runtime_config["slaves"].size() == 0:
+                n_jobs = runtime_config["n_jobs"]
+            else:
+                n_jobs = runtime_config["slaves"].size()
+        else:
+            n_jobs = runtime_config["n_jobs"]
+
+        # if func.lower() not in ("count", "sum", "avg", "var"):
+        #     raise ValueError("function not supported: "+func)
+        # if not groups: #is None:  # provide predictions for all groups.
+        #     groups = self.groupby_values
+
+        # if self.config.get_config()["accept_filter"]:
+        #     print("not implemented yet")
+        #     return
+
+        if func.lower() not in ("count", "sum", "avg", "var"):
+            raise ValueError("function not supported: "+func)
+        if not groups: #is None:  # provide predictions for all groups.
+            groups = self.groupby_values
+
+        if self.config.get_config()["accept_filter"]:
+            print("not implemented yet")
+            return
+
+        if func.lower() in ["count", "sum", "avg"]:
+            if n_jobs == 1:
+                # print("groups",groups)
+                
+                # print("self.n_total_point, size is", len(self.n_total_point))
+                # cnt =0
+                # for key in self.n_total_point:
+                #     cnt+=1
+                #     print(key, self.n_total_point[key])
+                #     if cnt==10:
+                #         break
+                # print("*"*100)
+
+                # new_ft={}
+                # with open("/home/quincy/Documents/workspace/DBEstClient/dbestwarehouse/large_group_counts.csv", "r") as f:
+                #     for line in f:
+                #         splits = line.split(",")
+                #         key="_".join(splits[:-1])
+                #         value = int(splits[-1])
+                #         new_ft[key]=value
+                # self.n_total_point = new_ft
+
+                # print("self.n_total_point, size is", len(self.n_total_point))
+                # cnt =0
+                # for key in self.n_total_point:
+                #     cnt+=1
+                #     print(key, self.n_total_point[key])
+                #     if cnt==10:
+                #         break
+                # print("*"*100)
+
+                # exit()
+
+                # exit()
+
+                if len(groups[0].split(",")) == 1:  # 1d group by
+                    scaling_factor = np.array([self.n_total_point[key]
+                                               for key in groups])
+                else:
+                    scaling_factor = np.array([self.n_total_point[key]
+                                               for key in groups])
+                # print("self.n_total_point", self.n_total_point)
+                # print("groups", groups)
+                # exit()
+                pre_density, pre_reg, step = prepare_reg_density_data(
+                    self.kde, x_lb, x_ub, groups=groups, reg=self.reg, runtime_config=runtime_config)
+                # print("pre_density, pre_reg", pre_density,)
+                # print(pre_reg)
+                # exit()
+
+                if func.lower() == "count":
+                    preds = approx_count(pre_density, step)
+                    preds = np.multiply(preds, scaling_factor)
+                elif func.lower() == "sum":
+                    preds = approx_sum(pre_density, pre_reg, step)
+                    preds = np.multiply(preds, scaling_factor)
+                elif func.lower() == "avg":  # avg
+                    preds = approx_avg(pre_density, pre_reg, step)
+                else:
+                    raise TypeError("wrong aggregate!")
+                results = zip(groups, preds)
+
+                # print("results", preds)
+                results = pd.DataFrame(results)#, columns=[self.usecols['gb'] +  # self.usecols[""] +
+                                                        #[self.usecols['y'][0]]])
+                # print("result", result)
+                return results
+
+            else:
+                print("parallel is not implemented yet.")
+                return
+
+
+class MdnQueryEngineNoRangeCategorical(GenericQueryEngine):
+    def __init__(self, config):
+        super().__init__()
+        self.n_total_point = None
+        self.config = config
+        self.runtime_config = None
+        self.models = {}
+        self.x_categorical_columns = None
+
+    def fit(self, mdl_name: str, origin_table_name: str, data: dict, total_points: dict, usecols: dict, runtime_config: dict):
+        if runtime_config['v']:
+            print("fit MdnQueryEngineNoRange: "+mdl_name+"...")
+        self.mdl_name = mdl_name
+        self.n_total_point = total_points
+        self.runtime_config = runtime_config
+        self.groupby_values = list(total_points.keys())
+        self.usecols = usecols
+
+        if self.config.config['b_use_gg']:
+            raise ValueError("Method not implemented.")
+        else:
+            config = self.config.copy()
+
+            idx = 0
+            total_points.pop("if_contain_x_categorical")
+            total_points.pop("categorical_distinct_values")
+            self.x_categorical_columns = total_points.pop(
+                "x_categorical_columns")
+            for categorical_attributes in total_points:
+                print("start training  sub_model " +
+                      str(idx) + " for "+mdl_name+"...")
+                idx += 1
+                gbs = data[categorical_attributes][usecols['gb']].values
+                ys = data[categorical_attributes][usecols['y']
+                                                  [0]].values.reshape(1, -1)[0]
+                if not self.config.get_config()["b_use_gg"]:
+                    qe_mdn = MdnQueryEngineNoRange(config).fit(
+                        mdl_name, origin_table_name, data[categorical_attributes], total_points[categorical_attributes], usecols=usecols, runtime_config=self.runtime_config)
+                else:  # use GoGs
+                    print("GoGs is not supported yet")
+                    return
+                    # qe_mdn = MdnQueryEngineGoGs(
+                    #     config=self.config.copy()).fit(data[categorical_attributes], usecols["gb"],
+                    #                                    total_points[categorical_attributes], mdl_name, origin_table_name,
+                    #                                    usecols["x_continous"][0], usecols["y"],
+                    #               bayern
+                    #                      runtime_config)
+
+                self.models[categorical_attributes] = qe_mdn
+
+    def predicts(self, func: str, x_lb: float, x_ub: float, x_categorical_conditions, runtime_config, groups: list = None, filter_dbest=None) -> pd.DataFrame:
+        # print("x_categorical_conditions", x_categorical_conditions)
+        cols = [item.lower() for item in x_categorical_conditions[0]]
+        keys = [item for item in x_categorical_conditions[1]]
+
+        if not x_categorical_conditions[2]:
+            # print("enter prediction X 1 model...")
+            sorted_keys = [keys[cols.index(col)].replace("'", "")
+                           for col in self.x_categorical_columns]
+            key = ",".join(sorted_keys)
+            predictions = self.models[key].predicts(
+                func, x_lb=x_lb, x_ub=x_ub, x_categorical_conditions=x_categorical_conditions, runtime_config=runtime_config, filter_dbest=filter_dbest)
+            return predictions
+        else:
+            print("enter prediction X multiple models...")
+            print("x_categorical_conditions[2]", x_categorical_conditions[2])
+            print("unexpected query")
+            return
+
+
+class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.n_total_point = None
+        self.mdl_name = None
+        self.reg = None
+        self.usecols = None
+
+    def fit(self, mdl_name: str, origin_table_name: str, gbs, xs, ys, total_points: dict, usecols: dict, runtime_config: dict):
+        if runtime_config['v']:
+            print("training "+mdl_name+"...")
+        self.mdl_name = mdl_name
+        self.n_total_point = total_points
+        self.usecols = usecols
+        if self.config.config['b_use_gg']:
+            raise ValueError("Method not implemented.")
+        else:
+            config = self.config.copy()
+            if runtime_config['v']:
+                print("training regression...")
+
+            # print("xs", xs)
+            # print("ys", ys)
+            # print("gbs", gbs)
+            # if not xs:
+            if  xs.size==0:
+                xs = None
+            self.reg = RegMdnGroupBy(config).fit(
+                gbs, xs, ys, runtime_config,usecols=usecols)
+
+    def predicts(self, func: str, x_lb: float, x_ub: float, x_categorical_conditions, runtime_config, groups: list = None, filter_dbest=None):
+        if "slaves" in runtime_config:
+            if runtime_config["slaves"].size() == 0:
+                n_jobs = runtime_config["n_jobs"]
+            else:
+                n_jobs = runtime_config["slaves"].size()
+        else:
+            n_jobs = runtime_config["n_jobs"]
+
+        if func.lower() not in ("count", "sum", "avg", "var"):
+            raise ValueError("function not supported: "+func)
+
+        if len(x_categorical_conditions[1]) > 1:
+            key = ",".join(x_categorical_conditions[1]).replace("'", "")
+        else:
+            key = x_categorical_conditions[1][0].replace("'", "")
+
+        # print("self.n_total_point", self.n_total_point)
+
+        groups_no_categorical = list(self.n_total_point[key].keys())
+
+        groups = [[item]+x_categorical_conditions[1]
+                  for item in groups_no_categorical]
+        groups = [','.join(g).replace("'", "") for g in groups]
+
+        # print("groups", groups)
+
+        reg_g_points = [g.split(",") for g in groups]
+        # print("reg_g_points", reg_g_points)
+        # print("x_categorical_conditions", x_categorical_conditions)
+        # print("self.usecols", self.usecols)
+        group_key = ','.join(x_categorical_conditions[1]).replace("'", "")
+        # print("key is ", group_key)
+        # g=reg_g_points[0][]
+
+        if n_jobs == 1:
+            groups_name = list(self.n_total_point[group_key].keys())
+            # groups_value = list(self.n_total_point.values())
+            if func.lower() == "count":
+                result = self.n_total_point[group_key]
+            elif func.lower() == "sum":
+                result = self.reg.predict(
+                    reg_g_points, None, runtime_config)
+                result = {g: res*self.n_total_point[group_key][g] for res,
+                          g in zip(result, groups_name)}
+            elif func.lower() == "avg":
+                result = self.reg.predict(
+                    reg_g_points, None, runtime_config)
+                result = {key: val for key, val in zip(
+                    groups, result)}
+
+            else:
+                raise TypeError("wrong aggregate!")
+            # results = dict(zip(groups, preds))
+            result = pd.DataFrame(result.items(), columns=[self.usecols['gb'] +
+                                                           [self.usecols['y'][0]]])
+            return result
+        else:
+            print("parallel inference for one model is not implemented.")
+            return
+
+
+class MdnQueryEngine(GenericQueryEngine):
+    t_before_multiple_processing = None
+
+    def __init__(self, kdeModelWrapper, config):
+        super().__init__()
         # self.n_training_point = kdeModelWrapper.n_sample_point
         self.n_total_point = kdeModelWrapper.n_total_point
         self.reg = kdeModelWrapper.reg
@@ -40,36 +486,23 @@ class MdnQueryEngine:
         self.x_max = kdeModelWrapper.x_max_value
         self.groupby_attribute = kdeModelWrapper.groupby_attribute
         self.groupby_values = kdeModelWrapper.groupby_values
-        # if config is None:
-        #     self.config = config = {
-        #         'warehousedir': 'dbestwarehouse',
-        #         'verbose': 'True',
-        #         'b_show_latency': 'True',
-        #         'backend_server': 'None',
-        #         'epsabs': 10.0,
-        #         'epsrel': 0.1,
-        #         'mesh_grid_num': 20,
-        #         'limit': 30,
-        #         'csv_split_char': '|',
-        #         'num_epoch': 400,
-        #         "reg_type": "mdn",
-        #     }
-        # else:
-        self.config = config
-        self.b_use_integral = config.get_config()["b_use_integral"]
+        self.density_column = kdeModelWrapper.x
+        self.mdl_name = kdeModelWrapper.mdl
 
-    def approx_avg(self, x_min, x_max, groupby_value):
+        self.config = config
+        # self.b_use_integral = runtime_config["b_use_integral"]
+
+    def approx_avg(self, x_min, x_max, groupby_value, runtime_config):
         start = datetime.now()
 
         def f_pRx(*args):
-            # print(self.cregression.predict(x))
             return self.kde.predict([[groupby_value]], args[0], b_plot=False) \
                 * self.reg.predict(np.array([[args[0], groupby_value]]))[0]
 
         def f_p(*args):
             return self.kde.predict([[groupby_value]], args[0], b_plot=False)
 
-        if self.b_use_integral:
+        if runtime_config["b_use_integral"]:
             a = integrate.quad(f_pRx, x_min, x_max,
                                epsabs=self.config['epsabs'], epsrel=self.config['epsrel'])[0]
             b = integrate.quad(f_p, x_min, x_max,
@@ -83,139 +516,162 @@ class MdnQueryEngine:
         else:
             result = None
 
-        if self.config['verbose']:
+        if runtime_config['b_show_latency']:
             end = datetime.now()
             time_cost = (end - start).total_seconds()
-            # print("Time spent for approximate AVG: %.4fs." % time_cost)
         return result, time_cost
 
-    def approx_sum(self, x_min, x_max, groupby_value):
+    def approx_sum(self, x_min, x_max, groupby_value, runtime_config):
         start = datetime.now()
 
         def f_pRx(*args):
             return self.kde.predict([[groupby_value]], args[0], b_plot=True) \
                 * self.reg.predict(np.array([[args[0], groupby_value]]))[0]
-            # * self.reg.predict(np.array(args))
 
-        # print(integrate.quad(f_pRx, x_min, x_max, epsabs=epsabs, epsrel=epsrel)[0])
-        if self.b_use_integral:
+        if runtime_config["b_use_integral"]:
             result = integrate.quad(f_pRx, x_min, x_max, epsabs=self.config['epsabs'], epsrel=self.config['epsrel'])[
                 0] * float(self.n_total_point[str(int(groupby_value))])
         else:
             result = approx_integrate(
                 f_pRx, x_min, x_max) * float(self.n_total_point[str(int(groupby_value))])
-        # return result
 
-        # result = result / float(self.n_training_point) * float(self.n_total_point)
-
-        # print("Approximate SUM: %.4f." % result)
-
-        if self.config['verbose'] and result != None:
+        if runtime_config['b_show_latency'] and result != None:
             end = datetime.now()
             time_cost = (end - start).total_seconds()
-            # print("Time spent for approximate SUM: %.4fs." % time_cost)
         return result, time_cost
 
-    def approx_count(self, x_min, x_max, groupby_value):
+    def approx_count(self, x_min, x_max, groupby_value, runtime_config):
         start = datetime.now()
 
         def f_p(*args):
             return self.kde.predict([[groupby_value]], args[0], b_plot=False)
             # return np.exp(self.kde.score_samples(np.array(args).reshape(1, -1)))
 
-        if self.b_use_integral:
+        if runtime_config["b_use_integral"]:
             result = integrate.quad(
                 f_p, x_min, x_max, epsabs=self.config['epsabs'], epsrel=self.config['epsrel'])[0]
         else:
             result = approx_integrate(f_p, x_min, x_max)
         result = result * float(self.n_total_point[str(int(groupby_value))])
 
-        # print("Approximate COUNT: %.4f." % result)
-        if self.config['verbose'] and result != None:
+        if runtime_config['b_show_latency'] and result != None:
             end = datetime.now()
             time_cost = (end - start).total_seconds()
-            # print("Time spent for approximate COUNT: %.4fs." % time_cost)
+
         return result, time_cost
 
-    def predict(self, func, x_lb, x_ub, groupby_value):
+    def approx_var(self, runtime_config):
+        start = datetime.now()
+        print("within approx_var!")
+
+        result = 9999999.9999
+        if runtime_config['b_show_latency'] and result != None:
+            end = datetime.now()
+            time_cost = (end - start).total_seconds()
+
+        return result, time_cost
+
+    def predict(self, func, x_lb=None, x_ub=None, groupby_value=None, runtime_config=None):
         if func.lower() == "count":
-            p, t = self.approx_count(x_lb, x_ub, groupby_value)
+            p, t = self.approx_count(x_lb, x_ub, groupby_value, runtime_config)
         elif func.lower() == "sum":
-            p, t = self.approx_sum(x_lb, x_ub, groupby_value)
+            p, t = self.approx_sum(x_lb, x_ub, groupby_value, runtime_config)
         elif func.lower() == "avg":
-            p, t = self.approx_avg(x_lb, x_ub, groupby_value)
+            p, t = self.approx_avg(x_lb, x_ub, groupby_value, runtime_config)
+        elif func.lower() == "var":
+            p, t = self.approx_var(runtime_config=runtime_config)
         else:
             print("Aggregate function " + func + " is not implemented yet!")
         return p, t
 
-    def predicts(self, func, x_lb, x_ub, b_parallel=True, n_jobs=4, ):  # result2file=None
-        result2file = self.config.get_config()["result2file"]
-        predictions = {}
-        times = {}
-        if not b_parallel:  # single process implementation
-            for groupby_value in self.groupby_values:
-                if groupby_value == "":
-                    continue
-                pre, t = self.predict(func, x_lb, x_ub, groupby_value)
-                predictions[groupby_value] = pre
-                times[groupby_value] = t
-                # print(groupby_value, pre)
-        else:  # multiple threads implementation
+    # def predicts(self, func, x_lb, x_ub, b_parallel=True, n_jobs=4, filter_dbest=None):  # result2file=None
+    #     result2file = self.config.get_config()["result2file"]
+    #     predictions = {}
+    #     times = {}
+    #     if not b_parallel:  # single process implementation
+    #         for groupby_value in self.groupby_values:
+    #             if groupby_value == "":
+    #                 continue
+    #             print("func, x_lb, x_ub, groupby_value",
+    #                   func, x_lb, x_ub, groupby_value)
+    #             pre, t = self.predict(func, x_lb, x_ub, groupby_value)
+    #             predictions[groupby_value] = pre
+    #             times[groupby_value] = t
+    #             # print(groupby_value, pre)
+    #     else:  # multiple threads implementation
 
-            width = int(len(self.groupby_values) / n_jobs)
-            subgroups = [self.groupby_values[inde:inde + width]
-                         for inde in range(0, len(self.groupby_values), width)]
-            if len(self.groupby_values) % n_jobs != 0:
-                subgroups[n_jobs - 1] = subgroups[n_jobs - 1] + \
-                    subgroups[n_jobs]
-                del subgroups[-1]
-            # index_in_groups = [[self.groupby_values.index(sgname) for sgname in sgnames] for sgnames in subgroups]
+    #         width = int(len(self.groupby_values) / n_jobs)
+    #         subgroups = [self.groupby_values[inde:inde + width]
+    #                      for inde in range(0, len(self.groupby_values), width)]
+    #         if len(self.groupby_values) % n_jobs != 0:
+    #             subgroups[n_jobs - 1] = subgroups[n_jobs - 1] + \
+    #                 subgroups[n_jobs]
+    #             del subgroups[-1]
+    #         # index_in_groups = [[self.groupby_values.index(sgname) for sgname in sgnames] for sgnames in subgroups]
 
-            instances = []
+    #         instances = []
 
-            with Pool(processes=n_jobs) as pool:
-                for subgroup in subgroups:
-                    i = pool.apply_async(
-                        query_partial_group, (self, subgroup, func, x_lb, x_ub))
-                    instances.append(i)
-                    # print(i.get())
-                    # print(instances[0].get(timeout=1))
-                for i in instances:
-                    result = i.get()
-                    pred = result[0]
-                    t = result[1]
-                    predictions.update(pred)
-                    times.update(t)
-                    # predictions += pred
-                    # times += t
-        if result2file is not None:
-            with open(result2file, 'w') as f:
-                for key in predictions:
-                    f.write(key + "," + str(predictions[key]))
-        return predictions, times
+    #         with Pool(processes=n_jobs) as pool:
+    #             for subgroup in subgroups:
+    #                 i = pool.apply_async(
+    #                     query_partial_group, (self, subgroup, func, x_lb, x_ub))
+    #                 instances.append(i)
+    #                 # print(i.get())
+    #                 # print(instances[0].get(timeout=1))
+    #             for i in instances:
+    #                 result = i.get()
+    #                 pred = result[0]
+    #                 t = result[1]
+    #                 predictions.update(pred)
+    #                 times.update(t)
+    #                 # predictions += pred
+    #                 # times += t
+    #     if result2file is not None:
+    #         with open(result2file, 'w') as f:
+    #             for key in predictions:
+    #                 f.write(key + "," + str(predictions[key]))
+    #     return predictions, times
 
-    def predict_one_pass(self, func: str, x_lb: float, x_ub: float, groups: list = None,  n_jobs: int = 1, filter=None):
-        # b_print_to_screen=True, n_division: int = 20, result2file: str = None,
-
-        b_print_to_screen = self.config.get_config()["b_print_to_screen"]
-        n_division = self.config.get_config()["n_division"]
-        result2file = self.config.get_config()["result2file"]
+    def predicts(self, func: str, x_lb: float = None, x_ub: float = None,  x_categorical_conditions=None, runtime_config=None, groups: list = None, filter_dbest=None, time2exclude_from_multiprocessing=None):
+        if time2exclude_from_multiprocessing is not None:
+            t_after_multiple_processing = datetime.now()
+            print("should reduce time {} from the query response time.".format(
+                (t_after_multiple_processing - time2exclude_from_multiprocessing).total_seconds()))
+        b_print_to_screen = runtime_config["b_print_to_screen"]
+        # n_division = runtime_config["n_division"]
+        result2file = runtime_config["result2file"]
+        if "slaves" in runtime_config:
+            if runtime_config["slaves"].size() == 0:
+                n_jobs = runtime_config["n_jobs"]
+            else:
+                n_jobs = runtime_config["slaves"].size()
+        else:
+            n_jobs = runtime_config["n_jobs"]
         # result2file = self.config.get_config()["result2file"]
 
-        if func.lower() not in ("count", "sum", "avg"):
+        if func.lower() not in ("count", "sum", "avg", "var"):
             raise ValueError("function not supported: "+func)
         if groups is None:  # provide predictions for all groups.
             groups = self.groupby_values
 
         if self.config.get_config()["accept_filter"]:
             results = self.n_total_point
+            # print("results,", results)
+            # print("filter_dbest", filter_dbest)
             results = {key: results[key] for key in results if float(
-                key) >= filter[0] and float(key) <= filter[1]}
+                key) >= filter_dbest[0] and float(key) <= filter_dbest[1]}
+
+            # if func.lower() not in ("count", "sum"):
+            #     # scale up the result
+            #     scaling_factor = self.config.get_config()["scaling_factor"]
+            #     # print("scaling_factor", scaling_factor)
+            #     results = {key: results[key]*scaling_factor for key in results}
 
             # print("self.n_total_point", self.n_total_point)
             if b_print_to_screen:
                 for key in results:
-                    print(",".join(key.split("-")) + "," + str(results[key]))
+                    print(",".join(key.split("-")) +
+                          "," + str(results[key]))
 
             if result2file is not None:
                 with open(result2file, 'w') as f:
@@ -223,60 +679,164 @@ class MdnQueryEngine:
                         f.write(str(key) + "," + str(results[key]) + "\n")
             return results
 
-        if n_jobs == 1:
-            # print(groups)
-            # print(self.n_total_point)
-            # print(groups[0], "*******************")
-            # print(",".join(groups[0]))
-            # for key in groups:
-            # print("key is ", key, end="----- ")
-            # print(",".join(key))
-            if len(groups[0].split(",")) == 1:  # 1d group by
-                # print(groups[0].split(","))
-                # print("1d")
-                scaling_factor = np.array([self.n_total_point[key]
-                                           for key in groups])
+        if func.lower() in ["count", "sum", "avg"]:
+            if n_jobs == 1:
+                # print(groups)
+                # print("self.n_total_point, size is", len(self.n_total_point))
+                # cnt =0
+                # for key in self.n_total_point:
+                #     cnt+=1
+                #     print(key, self.n_total_point[key])
+                #     if cnt==10:
+                #         break
+                # print("*"*100)
+
+                # new_ft={}
+                # with open("/home/quincy/Documents/workspace/DBEstClient/dbestwarehouse/large_group_counts.csv", "r") as f:
+                #     for line in f:
+                #         splits = line.split(",")
+                #         key=",".join(splits[:-1])
+                #         value = int(splits[-1])
+                #         new_ft[key]=value
+                # self.n_total_point = new_ft
+
+                # # print("self.n_total_point, size is", len(self.n_total_point))
+                # # cnt =0
+                # # for key in self.n_total_point:
+                # #     cnt+=1
+                # #     print(key, self.n_total_point[key])
+                # #     if cnt==10:
+                # #         break
+                # # print("*"*100)
+
+
+                # new_ft={}
+                # with open("/home/quincy/Documents/workspace/DBEstClient/dbestwarehouse/large_group_counts.csv", "r") as f:
+                #     for line in f:
+                #         splits = line.split(",")
+                #         key=",".join(splits[:-1])
+                #         value = int(splits[-1])
+                #         new_ft[key]=value
+                # self.n_total_point = new_ft
+
+
+                # exit()
+                # print(groups[0], "*******************")
+                # print(",".join(groups[0]))
+                # for key in groups:
+                # print("key is ", key, end="----- ")
+                # print(",".join(key))
+                if len(groups[0].split(",")) == 1:  # 1d group by
+                    # print(groups[0].split(","))
+                    # print("1d")
+                    scaling_factor = np.array([self.n_total_point[key]
+                                               for key in groups])
+                else:
+                    # print(groups[0].split(","))
+                    # print("n-d")
+                    scaling_factor = np.array([self.n_total_point[key]
+                                               for key in groups])
+                # print("self.n_total_point", self.n_total_point)
+                # exit()
+                # print("groups", groups)
+                pre_density, pre_reg, step = prepare_reg_density_data(
+                    self.kde, x_lb, x_ub, groups=groups, reg=self.reg, runtime_config=runtime_config)
+                # print("pre_density, pre_reg", pre_density,)
+                # print(pre_reg)
+                # exit()
+
+                if func.lower() == "count":
+                    preds = approx_count(pre_density, step)
+                    preds = np.multiply(preds, scaling_factor)
+                elif func.lower() == "sum":
+                    preds = approx_sum(pre_density, pre_reg, step)
+                    preds = np.multiply(preds, scaling_factor)
+                elif func.lower() == "avg":  # avg
+                    preds = approx_avg(pre_density, pre_reg, step)
+                else:
+                    raise TypeError("wrong aggregate!")
+                # results = dict(zip(groups, preds))
+                results = zip(groups, preds)
+                # columns=[self.usecols['gb'] +[self.usecols['y'][0]]]
+                result = pd.DataFrame(results)
+                # print("result", result)
+                return result
+
             else:
-                # print(groups[0].split(","))
-                # print("n-d")
-                scaling_factor = np.array([self.n_total_point[key]
-                                           for key in groups])
-            print("self.n_total_point", self.n_total_point)
-            pre_density, pre_reg, step = prepare_reg_density_data(
-                self.kde, x_lb, x_ub, groups=groups, reg=self.reg, n_division=n_division)
+                runtime_config_process = shrink_runtime_config(
+                    runtime_config)
+                # use multi-processing to achieve parallel
+                if runtime_config["slaves"].is_empty():
+                    instances = []
+                    results = {}
+                    # print("n_jobs,", n_jobs)
+                    n_per_chunk = math.ceil(len(groups)/n_jobs)
+                    group_chunks = [groups[i:i+n_per_chunk]
+                                    for i in range(0, len(groups), n_per_chunk)]
+                    # print("create Pool...", datetime.now())
+                    if runtime_config["device"] == "cpu":
+                        pool = PoolCPU(processes=n_jobs)
+                    else:
+                        pool = PoolGPU(processes=n_jobs)
+                        # from torch.multiprocessing import Pool, set_start_method
+                        # try:
+                        #     set_start_method('spawn')
+                        # except RuntimeError:
+                        #     print("Fail to set start method as spawn for pytorch multiprocessing, " +
+                        #           "use default in advance. (see queryenginemdn "
+                        #           "for more info.)")
 
-            if func.lower() == "count":
-                preds = approx_count(pre_density, step)
-                preds = np.multiply(preds, scaling_factor)
-            elif func.lower() == "sum":
-                preds = approx_sum(pre_density, pre_reg, step)
-                preds = np.multiply(preds, scaling_factor)
-            else:  # avg
-                preds = approx_avg(pre_density, pre_reg, step)
-            results = dict(zip(groups, preds))
+                    # with Pool(processes=n_jobs) as pool:
+                    # print(self.group_keys_chunk)
 
+                    time2exclude_from_multiprocessing = datetime.now()
+
+                    for sub_group in group_chunks:
+
+                        i = pool.apply_async(
+                            self.predicts, (func, x_lb, x_ub, x_categorical_conditions, runtime_config_process, sub_group, filter_dbest, time2exclude_from_multiprocessing))
+                        instances.append(i)
+
+                    for i in instances:
+                        result = i.get()
+                        results.update(result)
+                else:  # slaves are used
+                    slaves = runtime_config["slaves"]
+                    instances = []
+                    results = {}
+                    n_jobs = slaves.size()
+                    n_per_chunk = math.ceil(len(groups)/n_jobs)
+                    group_chunks = [groups[i:i+n_per_chunk]
+                                    for i in range(0, len(groups), n_per_chunk)]
+
+                    pool = ThreadPool(processes=n_jobs)
+                    hosts = slaves.get()
+                    for sub_group, host in zip(group_chunks, hosts):
+                        # print("host", host)
+                        query = dict(func=func, x_lb=x_lb, x_ub=x_ub, x_categorical_conditions=x_categorical_conditions, runtime_config=runtime_config_process,
+                                     sub_group=sub_group, filter_dbest=filter_dbest, mdl_name=self.mdl_name+runtime_config["model_suffix"])
+                        i = pool.apply_async(
+                            app_client.run, (hosts[host].host, hosts[host].port, "select", query))
+                        instances.append(i)
+
+                    for i in instances:
+                        result = i.get()
+                        results.update(result)
+                        # result = app_client.run(
+                        #     host, slaves.get()[host], "select", query)
+
+        elif func.lower() == "var":
+            print("predict var")
+
+            results = prepare_var(
+                self.kde, groups=groups, runtime_config=runtime_config)  # {"group":999.99}
         else:
-            instances = []
-            results = {}
-            n_per_chunk = math.ceil(len(groups)/n_jobs)
-            group_chunks = [groups[i:i+n_per_chunk]
-                            for i in range(0, len(groups), n_per_chunk)]
-            with Pool(processes=n_jobs) as pool:
-                # print(self.group_keys_chunk)
-                for sub_group in group_chunks:
-                    # print(sub_group)
-                    # engine = self.enginesContainer[index]
-                    # print(sub_group)
-                    i = pool.apply_async(
-                        self.predict_one_pass, (func, x_lb, x_ub, sub_group, False, n_division))
-                    instances.append(i)
-
-                for i in instances:
-                    result = i.get()
-                    results.update(result)
-        if b_print_to_screen:
+            raise TypeError("unexpected aggregated.")
+        runtime_config["b_print_to_screen"] = b_print_to_screen
+        if runtime_config["b_print_to_screen"]:
             for key in results:
-                print(",".join(key.split("-")) + "," + str(results[key]))
+                print(",".join(key.split("-")) +
+                      "," + str(results[key]))
 
         if result2file is not None:
             with open(result2file, 'w') as f:
@@ -284,34 +844,45 @@ class MdnQueryEngine:
                     f.write(str(key) + "," + str(results[key]) + "\n")
         return results
 
+    def serialize2warehouse(self, warehouse, runtime_config):
+        with open(warehouse + '/' + self.mdl_name + runtime_config["model_suffix"], 'wb') as f:
+            dill.dump(self, f)
+
+    def init_pickle_file_name(self, runtime_config):
+        return self.mdl_name+runtime_config["model_suffix"]
+
 
 def query_partial_group(mdnQueryEngine, group, func, x_lb, x_ub):
     mdnQueryEngine.groupby_values = group
     return mdnQueryEngine.predicts(func, x_lb, x_ub, b_parallel=False, n_jobs=1)
 
 
-class MdnQueryEngineBundle():
-    def __init__(self, config, device):
+class MdnQueryEngineGoGs():
+    # __init__(self, config, device):
+    def __init__(self, config):
         self.enginesContainer = {}
         self.config = config
         self.n_total_point = None
         self.group_keys_chunk = None
         self.group_keys = None
         self.pickle_file_name = None
-        self.device = device
+        self.density_column = None
 
     def fit(self, df: pd.DataFrame, groupby_attribute: str, n_total_point: dict,
-            mdl: str, tbl: str, xheader: str, yheader: str, ):  # n_per_group: int = 10, n_mdn_layer_node=10, encoding = "onehot", b_grid_search = True
+            mdl: str, tbl: str, xheader: str, yheader: str, runtime_config: dict):  # n_per_group: int = 10, n_mdn_layer_node=10, encoding = "onehot", b_grid_search = True
         # configuration-related parameters.
-        n_per_group = self.config.get_config()["n_per_group"]
-        n_mdn_layer_node = self.config.get_config()["n_mdn_layer_node"]
-        encoding = self.config.get_config()["encoding"]
+        n_per_group = self.config.get_config()["n_per_gg"]
+        n_mdn_layer_node = self.config.get_config()["n_mdn_layer_node_reg"]
+        encoding = self.config.get_config()["encoder"]
         b_grid_search = self.config.get_config()["b_grid_search"]
+
+        self.density_column = xheader
 
         self.pickle_file_name = mdl
         # print(groupby_attribute)
         # print(df)
 
+        # df = df["data"]
         grouped = df.groupby(groupby_attribute)
 
         # print("grouped", grouped)
@@ -440,37 +1011,44 @@ class MdnQueryEngineBundle():
             kdeModelWrapper = KdeModelTrainer(mdl, tbl, xheader, yheader, groupby_attribute=groupby_attribute,
                                               groupby_values=chunk_key,
                                               n_total_point=n_total_point_chunk,
-                                              x_min_value=-np.inf, x_max_value=np.inf, config=self.config, device=self.device).fit_from_df(
-                chunk_group, network_size="small", n_mdn_layer_node=n_mdn_layer_node,
-                encoding=encoding, b_grid_search=b_grid_search)
+                                              x_min_value=-np.inf, x_max_value=np.inf, config=self.config).fit_from_df(
+                chunk_group, network_size="small", runtime_config=runtime_config)
 
-            engine = MdnQueryEngine(kdeModelWrapper, config=self.config)
+            engine = MdnQueryEngine(
+                kdeModelWrapper, config=self.config.copy())
             self.enginesContainer[index] = engine
         return self
 
-    def predicts(self, func, x_lb, x_ub, n_jobs=4, ):
+    def predicts(self, func, x_lb, x_ub, x_categorical_conditions, runtime_config, groups: list = None, filter_dbest=None):
         # result2file=None, n_division=20, b_print_to_screen=True
-        result2file = self.config.get_config()["result2file"]
-        n_division = self.config.get_config()["n_division"]
-        b_print_to_screen = self.config.get_config()["b_print_to_screen"]
+        result2file = runtime_config["result2file"]
+        n_division = runtime_config["n_division"]
+        b_print_to_screen = runtime_config["b_print_to_screen"]
+        n_jobs = runtime_config["n_jobs"]
         instances = []
         predictions = {}
         # times = {}
-        with Pool(processes=n_jobs) as pool:
-            # print(self.group_keys_chunk)
-            for index, sub_group in enumerate(self.group_keys_chunk):
-                # print(sub_group)
-                engine = self.enginesContainer[index]
-                i = pool.apply_async(
-                    engine.predict_one_pass, (func, x_lb, x_ub, sub_group, False, n_division))
-                instances.append(i)
+        if runtime_config["device"] == "cpu":
+            pool = PoolCPU(processes=n_jobs)
+        else:
+            pool = PoolGPU(processes=n_jobs)
+        # with Pool(processes=n_jobs) as pool:
+        # print(self.group_keys_chunk)
+        for index, sub_group in enumerate(self.group_keys_chunk):
+            # print(sub_group)
+            engine = self.enginesContainer[index]
+            runtime_config["b_print_to_screen"] = False
+            i = pool.apply_async(
+                engine.predicts, (func, x_lb, x_ub, x_categorical_conditions, runtime_config, sub_group, filter_dbest))
+            instances.append(i)
 
-            for i in instances:
-                result = i.get()
-                # pred = result[0]
-                # t = result[1]
-                predictions.update(result)
-                # times.update(t)
+        for i in instances:
+            result = i.get()
+            # pred = result[0]
+            # t = result[1]
+            predictions.update(result)
+            # times.update(t)
+        runtime_config["b_print_to_screen"] = b_print_to_screen
         if b_print_to_screen:
             for key in predictions:
                 print(key + "," + str(predictions[key]))
@@ -481,41 +1059,57 @@ class MdnQueryEngineBundle():
                     f.write(str(key) + "," + str(predictions[key]) + "\n")
         return predictions
 
-    def init_pickle_file_name(self):
+    def init_pickle_file_name(self, runtime_config):
         # self.pickle_file_name = self.pickle_file_name
-        return self.pickle_file_name + ".pkl"
+        return self.pickle_file_name + runtime_config["model_suffix"]
 
-    def serialize2warehouse(self, warehouse):
+    def serialize2warehouse(self, warehouse, runtime_config):
         if self.pickle_file_name is None:
-            self.init_pickle_file_name()
+            self.init_pickle_file_name(runtime_config)
 
-        with open(warehouse + '/' + self.init_pickle_file_name(), 'wb') as f:
+        with open(warehouse + '/' + self.init_pickle_file_name(runtime_config), 'wb') as f:
             dill.dump(self, f)
 
 
-class MdnQueryEngineXCategorical:
+class MdnQueryEngineXCategorical(GenericQueryEngine):
     """ This class is the query engine for x with categorical attributes
     """
 
     def __init__(self, config):
+        super().__init__()
         self.models = {}
         self.config = config
         self.mdl_name = None
         self.n_total_points = None
+        self.x_categorical_columns = None
+        self.categorical_distinct_values = None
+        self.group_by_columns = None
+        self.density_column = None
 
     # device: str, encoding="binary", b_grid_search=False
-    def fit(self, mdl_name: str, origin_table_name: str, data: dict, total_points: dict, usecols: dict):
+
+    def fit(self, mdl_name: str, origin_table_name: str, data: dict, total_points: dict, usecols: dict, runtime_config: dict):
         if not total_points["if_contain_x_categorical"]:
             raise ValueError("The data provided is not a dict.")
 
         print("fit MdnQueryEngineXCategorical...")
+        self.density_column = usecols["x_continous"][0]
         self.mdl_name = mdl_name
         self.n_total_points = total_points
         total_points.pop("if_contain_x_categorical")
+        self.x_categorical_columns = total_points.pop("x_categorical_columns")
+        self.categorical_distinct_values = total_points.pop(
+            "categorical_distinct_values")
+        # print("self.x_categorical_columns",
+        #       self.x_categorical_columns)
+        # del self.x_categorical_columns[self.density_column]
+        self.group_by_columns = usecols['gb']
+
+        # print("x_categorical_columns", self.x_categorical_columns)
 
         # configuration-related parameters.
-        device = self.config.get_config()["device"]
-        encoding = self.config.get_config()["encoding"]
+        device = runtime_config["device"]
+        encoding = self.config.get_config()["encoder"]
         b_grid_search = self.config.get_config()["b_grid_search"]
         # print("total_points", total_points)
         idx = 0
@@ -523,17 +1117,30 @@ class MdnQueryEngineXCategorical:
             print("start training  sub_model " +
                   str(idx) + " for "+mdl_name+"...")
             idx += 1
-            kdeModelWrapper = KdeModelTrainer(
-                mdl_name, origin_table_name, usecols["x_continous"][0], usecols["y"],
-                groupby_attribute=usecols["gb"],
-                groupby_values=list(
-                    total_points[categorical_attributes].keys()),
-                n_total_point=total_points[categorical_attributes],
-                x_min_value=-np.inf, x_max_value=np.inf,
-                config=self.config, device=device).fit_from_df(
-                data[categorical_attributes], encoding=encoding, network_size="large", b_grid_search=b_grid_search, )
+            # print("total_points", total_points)
+            # print(list(total_points[categorical_attributes].keys()))
+            # GoG is not used, use kdeModelTrainer instead.
+            if not self.config.get_config()["b_use_gg"]:
+                kdeModelWrapper = KdeModelTrainer(
+                    mdl_name, origin_table_name, usecols["x_continous"][0], usecols["y"],
+                    groupby_attribute=usecols["gb"],
+                    groupby_values=list(
+                        total_points[categorical_attributes].keys()),
+                    n_total_point=total_points[categorical_attributes],
+                    x_min_value=-np.inf, x_max_value=np.inf,
+                    config=self.config).fit_from_df(
+                    # data[categorical_attributes]["data"], runtime_config=runtime_config, network_size="large",)
+                    data[categorical_attributes], runtime_config=runtime_config, network_size="large",)
 
-            qe_mdn = MdnQueryEngine(kdeModelWrapper, self.config)
+                qe_mdn = MdnQueryEngine(
+                    kdeModelWrapper, self.config.copy())
+            else:  # use GoGs
+                qe_mdn = MdnQueryEngineGoGs(
+                    config=self.config.copy()).fit(data[categorical_attributes], usecols["gb"],
+                                                   total_points[categorical_attributes], mdl_name, origin_table_name,
+                                                   usecols["x_continous"][0], usecols["y"],
+                                                   runtime_config)
+
             self.models[categorical_attributes] = qe_mdn
 
         # kdeModelWrapper.serialize2warehouse(
@@ -542,64 +1149,353 @@ class MdnQueryEngineXCategorical:
         #     kdeModelWrapper)
 
     # result2file=False,n_division=20
-    def predicts(self, func, x_lb, x_ub, categorical_attributes,  n_jobs=1, filter=None):
+    def predicts(self, func, x_lb, x_ub, x_categorical_conditions, runtime_config, groups: list = None, filter_dbest=None,):
+        # print(self.models.keys())
+        # print(x_categorical_conditions)
+        b_print_to_screen = runtime_config["b_print_to_screen"]
+        x_categorical_conditions[2].pop(self.density_column)
         # configuration-related parameters.
-        # result2file = self.config.get_config()["result2file"]
-        n_jobs = self.config.get_config()["n_jobs"]
-        # n_division = self.config.get_config()["n_division"]
-        # print("self.models.keys()", self.models.keys())
-        # print("categorical_attributes", categorical_attributes)
-        self.models[categorical_attributes].predict_one_pass(func, x_lb=x_lb, x_ub=x_ub,
-                                                             n_jobs=n_jobs, filter=filter)  # result2file=result2file,n_division=n_division,
+        # n_jobs = runtime_config["n_jobs"]
 
-    def serialize2warehouse(self, warehouse):
-        with open(warehouse + '/' + self.mdl_name + '.pkl', 'wb') as f:
+        # check the condition when only one model is involved.
+        cols = [item.lower() for item in x_categorical_conditions[0]]
+        keys = [item for item in x_categorical_conditions[1]]
+        if not x_categorical_conditions[2]:
+            print("enter prediction X 1 model...", datetime.now())
+            # prepare the key of the model.
+
+            # print(self.x_categorical_columns)
+            # print(keys)
+            # print(cols)
+            sorted_keys = [keys[cols.index(col)].replace("'", "")
+                           for col in self.x_categorical_columns]
+            key = ",".join(sorted_keys)
+
+            runtime_config["b_print_to_screen"] = False
+
+            # make the predictions
+            predictions = self.models[key].predicts(
+                func, x_lb=x_lb, x_ub=x_ub, x_categorical_conditions=x_categorical_conditions, runtime_config=runtime_config, filter_dbest=filter_dbest)
+
+        else:
+            # prepare the keys of the models to be called.
+            print("enter prediction X multiple models...", datetime.now())
+            keys_list = []
+            predictions = Counter({})
+            for col in x_categorical_conditions[2]:
+                # print(col, x_categorical_conditions[2][col])
+                distinct_values = self.categorical_distinct_values[col.lower()]
+                for value in distinct_values:
+                    if meet_condition(value, x_categorical_conditions[2][col]):
+                        key = []
+                        for key_item in self.x_categorical_columns:
+                            # print(key_item)
+                            if key_item in cols:
+                                key.append(
+                                    keys[cols.index(key_item)].replace("'", ""))
+                            else:
+                                key.append(value)
+                        # print(key)
+                        key = ",".join(key)
+
+                        # make the predictions
+                        runtime_config["b_print_to_screen"] = False
+                        print("start entering multi-processing", datetime.now())
+                        pred = self.models[key].predicts(func, x_lb=x_lb, x_ub=x_ub, x_categorical_conditions=x_categorical_conditions,
+                                                         runtime_config=runtime_config, filter_dbest=filter_dbest)
+                        predictions = predictions + Counter(pred)
+                        keys_list.append(key)
+            # print("predictions",predictions)
+            predictions = dict(predictions)
+            results = zip(predictions.keys(), predictions.values())
+            predictions = pd.DataFrame(results)#, columns=[self.usecols['gb'] +  # self.usecols[""] +
+                                                    #[self.usecols['y'][0]]])
+            # print(resu)
+        # print("preditions,", predictions)
+        # restore b_print_to_screen
+        # runtime_config["b_print_to_screen"] = b_print_to_screen
+        # if b_print_to_screen:
+        #     headers = list(self.group_by_columns)
+        #     headers.append("value")
+        #     print(" ".join(headers))
+
+        #     for pred in predictions:
+        #         print(pred, predictions[pred])
+
+            # print(keys_list)
+            # print(predictions)
+
+            # print("need to get predictions from multiple models.")
+        runtime_config["b_print_to_screen"] = b_print_to_screen
+        return predictions
+
+    def serialize2warehouse(self, warehouse, runtime_config):
+        with open(warehouse + '/' + self.mdl_name + runtime_config["model_suffix"], 'wb') as f:
             dill.dump(self, f)
 
-    def init_pickle_file_name(self):
-        return self.mdl_name+".pkl"
+    def init_pickle_file_name(self, runtime_config):
+        return self.mdl_name+runtime_config["model_suffix"]
 
 
-# if __name__ == "__main__":
-#     config = {
-#         'warehousedir': '/home/u1796377/Programs/dbestwarehouse',
-#         'verbose': 'True',
-#         'b_show_latency': 'True',
-#         'backend_server': 'None',
-#         'csv_split_char': ',',
-#         "epsabs": 10.0,
-#         "epsrel": 0.1,
-#         "mesh_grid_num": 20,
-#         "limit": 30,
-#         # "b_reg_mean":'True',
-#         "num_epoch": 400,
-#         "reg_type": "mdn",
-#         "density_type": "density_type",
-#         "num_gaussians": 4,
-#     }
+def meet_condition(value: str, condition):
+    value = float(value)
+    # check x greater than
+    if condition[0] is None:
+        b1 = True
+    else:
+        if condition[2]:
+            b1 = True if value >= float(condition[0]) else False
+        else:
+            b1 = True if value > float(condition[0]) else False
+    # check x less than
+    if condition[1] is None:
+        b2 = True
+    else:
+        if condition[3]:
+            b2 = True if value <= float(condition[1]) else False
+        else:
+            b2 = True if value < float(condition[1]) else False
 
-#     headers = ["ss_sold_date_sk", "ss_sold_time_sk", "ss_item_sk", "ss_customer_sk", "ss_cdemo_sk", "ss_hdemo_sk",
-#                "ss_addr_sk", "ss_store_sk", "ss_promo_sk", "ss_ticket_number", "ss_quantity", "ss_wholesale_cost",
-#                "ss_list_price", "ss_sales_price", "ss_ext_discount_amt", "ss_ext_sales_price",
-#                "ss_ext_wholesale_cost", "ss_ext_list_price", "ss_ext_tax", "ss_coupon_amt", "ss_net_paid",
-#                "ss_net_paid_inc_tax", "ss_net_profit", "none"]
-#     groupby_attribute = "ss_store_sk"
-#     xheader = "ss_wholesale_cost"
-#     yheader = "ss_list_price"
+    return b1 and b2
 
-#     sampler = DBEstSampling(headers=headers, usecols=[
-#         xheader, yheader, groupby_attribute])
-#     total_count = {'total': 2879987999}
-#     original_data_file = "/data/tpcds/40G/ss_600k_headers.csv"
 
-#     sampler.make_sample(original_data_file, 60000, "uniform", split_char="|",
-#                         num_total_records=total_count)
-#     xyzs = sampler.getyx(yheader, xheader, groupby=groupby_attribute)
-#     n_total_point = get_group_count_from_summary_file(
-#         config['warehousedir'] + "/num_of_points57.txt", sep=',')
+class MdnQueryEngineXCategoricalOneModel(GenericQueryEngine):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.n_total_points = None
+        self.group_by_columns = None
+        self.density_column = None
 
-#     bundles = MdnQueryEngineBundle(config=config, device="cpu")
-#     bundles.fit(xyzs, groupby_attribute, n_total_point, "mdl", "tbl",
-#                 xheader, yheader, n_per_group=30, b_grid_search=False,)
+    def serialize2warehouse(self, warehouse, runtime_config):
+        with open(warehouse + '/' + self.mdl_name + runtime_config["model_suffix"], 'wb') as f:
+            dill.dump(self, f)
 
-#     bundles.predicts("count", 2451119, 2451483)
+    def init_pickle_file_name(self, runtime_config):
+        return self.mdl_name+runtime_config["model_suffix"]
+
+    def fit(self, mdl_name: str, origin_table_name: str, gbs, xs, ys, total_points: dict, usecols: dict, runtime_config: dict):
+        # if not total_points["if_contain_x_categorical"]:
+        #     raise ValueError("The data provided is not a dict.")
+        if runtime_config['v']:
+            print("fit MdnQueryEngineXCategoricalOneModel...")
+
+        self.density_column = usecols["x_continous"][0]
+        self.mdl_name = mdl_name
+        self.n_total_points = total_points
+        # total_points.pop("if_contain_x_categorical")
+        self.x_categorical_columns = usecols["x_categorical"]
+        # self.categorical_distinct_values = total_points.pop(
+        #     "categorical_distinct_values")
+        self.group_by_columns = usecols['gb']
+
+        # configuration-related parameters.
+        device = runtime_config["device"]
+        encoding = self.config.get_config()["encoder"]
+        b_grid_search = self.config.get_config()["b_grid_search"]
+
+        if self.config.config['b_use_gg']:
+            raise ValueError("Method not implemented.")
+        else:
+            config = self.config.copy()
+
+            if runtime_config['v']:
+                print("training density...")
+            # print("usecols", usecols)
+            self.density = KdeMdn(config, b_store_training_data=False).fit(
+                gbs, xs, runtime_config)
+
+            if runtime_config['v']:
+                print("training regression...")
+            self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
+                gbs, xs, ys, runtime_config,usecols=usecols)
+            # kdeModelWrapper = KdeModelTrainer(
+            #     mdl_name, origin_table_name, usecols["x_continous"][0], usecols["y"],
+            #     groupby_attribute=usecols["gb"],
+            #     groupby_values=list(
+            #         total_points[categorical_attributes].keys()),
+            #     n_total_point=total_points[categorical_attributes],
+            #     x_min_value=-np.inf, x_max_value=np.inf,
+            #     config=self.config).fit_from_df(
+            #         data[categorical_attributes], runtime_config=runtime_config)
+
+            # qe_mdn = MdnQueryEngine(
+            #     kdeModelWrapper, self.config.copy())
+
+    def predicts(self, func: str, x_lb: float, x_ub: float, x_categorical_conditions, runtime_config, groups: list = None, filter_dbest=None):
+        if "slaves" in runtime_config:
+            if runtime_config["slaves"].size() == 0:
+                n_jobs = runtime_config["n_jobs"]
+            else:
+                n_jobs = runtime_config["slaves"].size()
+        else:
+            n_jobs = runtime_config["n_jobs"]
+        # result2file = self.config.get_config()["result2file"]
+        b_print_to_screen = runtime_config["b_print_to_screen"]
+        result2file = runtime_config["result2file"]
+
+        if func.lower() not in ("count", "sum", "avg", "var"):
+            raise ValueError("function not supported: "+func)
+
+        # print("x_categorical_conditions", x_categorical_conditions)
+
+        if len(x_categorical_conditions[1]) > 1:
+            key = ",".join(x_categorical_conditions[1]).replace("'", "")
+        else:
+            key = x_categorical_conditions[1][0].replace("'", "")
+        # print("key", key)
+        # i=0;
+        # for k in self.n_total_points:
+        #     print(k, self.n_total_points[k])
+        #     i+=1
+        #     if (i>100):
+        #         break
+        # print("self.n_total_points", self.n_total_points)
+
+        groups_no_categorical = list(self.n_total_points[key].keys())
+
+        groups = [[item]+x_categorical_conditions[1]
+                  for item in groups_no_categorical]
+        groups = [','.join(g).replace("'", "") for g in groups]
+        # print("groups", groups)
+
+        if n_jobs == 1:
+            # print(groups)
+            # print(self.n_total_point)
+            # print(groups[0], "*******************")
+            # print(",".join(groups[0]))
+            # for key in groups:
+            # print("key is ", key, end="----- ")
+            # print(",".join(key))
+
+            # print(self.n_total_points)
+
+            if len(groups[0].split(",")) == 1:  # 1d group by
+                # print(groups[0].split(","))
+                # print("1d")
+                scaling_factor = np.array([self.n_total_points[key][k]
+                                           for k in groups_no_categorical])
+            else:
+                # print(groups[0].split(","))
+                # print("n-d")
+                scaling_factor = np.array([self.n_total_points[key][k]
+                                           for k in groups_no_categorical])
+            # print("SF",self.n_total_points[key])
+            # for item in self.n_total_points[key]:
+            #     print(item, self.n_total_points[key][item])
+            # print("scaling_factor",scaling_factor)
+            # print("self.n_total_point", self.n_total_point)
+            pre_density, pre_reg, step = prepare_reg_density_data(
+                self.density, x_lb, x_ub, groups=groups, reg=self.reg, runtime_config=runtime_config)
+            # print("pre_density, pre_reg",pre_density,)
+            # print(pre_reg)
+
+            if func.lower() == "count":
+                preds = approx_count(pre_density, step)
+                preds = np.multiply(preds, scaling_factor)
+            elif func.lower() == "sum":
+                preds = approx_sum(pre_density, pre_reg, step)
+                preds = np.multiply(preds, scaling_factor)
+            else:  # avg
+                preds = approx_avg(pre_density, pre_reg, step)
+            # print("groups-------------", groups)
+            # results = dict(zip(groups_no_categorical, preds))
+            results = zip(groups, preds)
+            results = pd.DataFrame(results)
+            return results
+
+        else:
+            runtime_config_process = shrink_runtime_config(
+                runtime_config)
+            # use multi-processing to achieve parallel
+            if runtime_config["slaves"].is_empty():
+                instances = []
+                results = {}
+                # print("n_jobs,", n_jobs)
+                n_per_chunk = math.ceil(len(groups)/n_jobs)
+                group_chunks = [groups[i:i+n_per_chunk]
+                                for i in range(0, len(groups), n_per_chunk)]
+                # print("create Pool...", datetime.now())
+                if runtime_config["device"] == "cpu":
+                    pool = PoolCPU(processes=n_jobs)
+                else:
+                    pool = PoolGPU(processes=n_jobs)
+                    # from torch.multiprocessing import Pool, set_start_method
+                    # try:
+                    #     set_start_method('spawn')
+                    # except RuntimeError:
+                    #     print("Fail to set start method as spawn for pytorch multiprocessing, " +
+                    #           "use default in advance. (see queryenginemdn "
+                    #           "for more info.)")
+
+                # with Pool(processes=n_jobs) as pool:
+                # print(self.group_keys_chunk)
+
+                time2exclude_from_multiprocessing = datetime.now()
+
+                for sub_group in group_chunks:
+
+                    i = pool.apply_async(
+                        self.predicts, (func, x_lb, x_ub, x_categorical_conditions, runtime_config_process, sub_group, filter_dbest, time2exclude_from_multiprocessing))
+                    instances.append(i)
+
+                for i in instances:
+                    result = i.get()
+                    results.update(result)
+            else:  # slaves are used
+                slaves = runtime_config["slaves"]
+                instances = []
+                results = {}
+                n_jobs = slaves.size()
+                n_per_chunk = math.ceil(len(groups)/n_jobs)
+                group_chunks = [groups[i:i+n_per_chunk]
+                                for i in range(0, len(groups), n_per_chunk)]
+
+                pool = ThreadPool(processes=n_jobs)
+                hosts = slaves.get()
+                for sub_group, host in zip(group_chunks, hosts):
+                    # print("host", host)
+                    query = dict(func=func, x_lb=x_lb, x_ub=x_ub, x_categorical_conditions=x_categorical_conditions, runtime_config=runtime_config_process,
+                                 sub_group=sub_group, filter_dbest=filter_dbest, mdl_name=self.mdl_name+runtime_config["model_suffix"])
+                    i = pool.apply_async(
+                        app_client.run, (hosts[host].host, hosts[host].port, "select", query))
+                    instances.append(i)
+
+                for i in instances:
+                    result = i.get()
+                    results.update(result)
+                    # result = app_client.run(
+                    #     host, slaves.get()[host], "select", query)
+        runtime_config["b_print_to_screen"] = b_print_to_screen
+        if runtime_config["b_print_to_screen"]:
+            for key in results:
+                print(",".join(key.split("-")) +
+                      "," + str(results[key]))
+
+        if result2file is not None:
+            with open(result2file, 'w') as f:
+                for key in results:
+                    f.write(str(key) + "," + str(results[key]) + "\n")
+        return results
+
+
+class QueryEngineFrequencyTable(GenericQueryEngine):
+    def __init__(self,  config):
+        super().__init__()
+        self.config= config
+        self.runtime_config = None
+        self.ft=None
+        self.usecols=None
+        self.n_total_point = None
+
+    def fit(self, mdl_name: str, origin_table_name: str, gbs_data,xs_data,ys_data, total_points: dict, usecols: dict, runtime_config: dict):
+        self.mdl_name=mdl_name
+        self.n_total_point=total_points
+        self.usecols=usecols
+        self.runtime_config = runtime_config
+        if gbs_data is not None or xs_data is not None or ys_data is not None:
+            raise ValueError("data should be None for FT.")
+        
+    
+    def predicts(self, func: str, x_lb: float, x_ub: float, x_categorical_conditions, runtime_config, groups: list = None, filter_dbest=None):
+        pass

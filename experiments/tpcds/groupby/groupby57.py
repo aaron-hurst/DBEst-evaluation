@@ -12,53 +12,131 @@ from dbestclient.executor.executor import SqlExecutor
 
 
 def run():
-    # config = {
-    #     'warehousedir': '/home/u1796377/Programs/dbestwarehouse',
-    #     'verbose': 'True',
-    #     'b_show_latency': 'True',
-    #     'backend_server': 'None',
-    #     'csv_split_char': '|',
-    #     "epsabs": 10.0,
-    #     "epsrel": 0.1,
-    #     "mesh_grid_num": 20,
-    #     "limit": 30,
-    #     # "b_reg_mean":'True',
-    #     "num_epoch": 400,
-    #     "reg_type": "mdn",
-    #     "density_type": "mdn",
-    #     "num_gaussians": 4,
-    # }
-
     sqlExecutor = SqlExecutor()
-    sqlExecutor.config.set_one_parameter("csv_split_char", "|")
-    sqlExecutor.set_table_headers("ss_sold_date_sk,ss_sold_time_sk,ss_item_sk,ss_customer_sk,ss_cdemo_sk,ss_hdemo_sk," +
-                                  "ss_addr_sk,ss_store_sk,ss_promo_sk,ss_ticket_number,ss_quantity,ss_wholesale_cost," +
-                                  "ss_list_price,ss_sales_price,ss_ext_discount_amt,ss_ext_sales_price," +
-                                  "ss_ext_wholesale_cost,ss_ext_list_price,ss_ext_tax,ss_coupon_amt,ss_net_paid," +
-                                  "ss_net_paid_inc_tax,ss_net_profit,none")
-
+    sqlExecutor.execute("set v='True'")
+    sqlExecutor.execute("set n_jobs=8")
+    sqlExecutor.execute("set device='cpu'")
+    sqlExecutor.execute("set encoder='binary'")
+    sqlExecutor.execute("set b_grid_search='False'")
+    sqlExecutor.execute("set b_print_to_screen='true'")
+    sqlExecutor.execute("set csv_split_char='|'")
+    sqlExecutor.execute("set batch_size=1000")
+    sqlExecutor.execute("set table_header=" +
+                        "'ss_sold_date_sk|ss_sold_time_sk|ss_item_sk|ss_customer_sk|ss_cdemo_sk|ss_hdemo_sk|" +
+                        "ss_addr_sk|ss_store_sk|ss_promo_sk|ss_ticket_number|ss_quantity|ss_wholesale_cost|" +
+                        "ss_list_price|ss_sales_price|ss_ext_discount_amt|ss_ext_sales_price|" +
+                        "ss_ext_wholesale_cost|ss_ext_list_price|ss_ext_tax|ss_coupon_amt|ss_net_paid|" +
+                        "ss_net_paid_inc_tax|ss_net_profit|none'"
+                        )
+    # run_2_groupby(sqlExecutor)
     build_models(sqlExecutor)
     query(sqlExecutor)
+    # run_57_groups(sqlExecutor)
+    # run_57_gogs(sqlExecutor)
 
 
 def build_models(sqlExecutor):
     # 10k
+    # ,ss_quantity  , ss_coupon_amt categorical
     sqlExecutor.execute(
-        "create table ss40g_1(ss_sales_price real, ss_sold_date_sk real, ss_coupon_amt categorical) from '/data/tpcds/40G/ss_600k.csv' GROUP BY ss_store_sk method uniform size 60000 scale data num_of_points2.csv", n_mdn_layer_node=8, encoding="binary", b_grid_search=False, device='gpu', b_use_gg=False, n_per_gg=260)  # ,ss_quantity
-    # "create table ss40g_600k(ss_sales_price real, ss_sold_date_sk real) from '/data/tpcds/40G/ss_600k.csv' GROUP BY ss_store_sk method uniform size 600000")
-    # "create table ss_600k(ss_quantity real, ss_sales_price real) from '/data/tpcds/40G/ss_600k.csv' GROUP BY ss_store_sk method uniform size 600000")
-    # ss_coupon_amt categorical, ss_sold_time_sk categorical
+        "create table ss40g(ss_sales_price real, ss_sold_date_sk real) from '/data/tpcds/40G/ss_600k.csv' GROUP BY ss_store_sk,ss_quantity method uniform size 600 ")
+
+    # sqlExecutor.execute(
+    #     "create table ss40g_no_categorical(ss_sales_price real, ss_sold_date_sk real,) from '/data/tpcds/40G/ss_1k.csv' GROUP BY ss_store_sk method uniform size 'num_of_points57.csv'")
 
 
 def query(sqlExecutor):
+    sqlExecutor.execute("set b_print_to_screen='false'")
+    sqlExecutor.execute("set n_jobs=2")
     sqlExecutor.execute(
-        "select avg(ss_sales_price)  from ss40g_1 where ss_sold_date_sk between 2451119  and 2451483 and ss_coupon_amt=''  group by ss_store_sk", n_jobs=1, n_division=20, b_use_gg=False, device='gpu')
+        "select avg(ss_sales_price)  from ss40g where   2451119  <=ss_sold_date_sk<= 2451483 and ss_coupon_amt='' and ss_quantity=''   group by ss_store_sk",)
+    sqlExecutor.execute("set n_jobs=2")
+    sqlExecutor.execute(
+        "select avg(ss_sales_price)  from ss40g where   2451119  <=ss_sold_date_sk<= 2451483 and ss_coupon_amt='' and ss_quantity=''   group by ss_store_sk",)
+    sqlExecutor.execute("set n_jobs=2")
+    sqlExecutor.execute(
+        "select avg(ss_sales_price)  from ss40g where   2451119  <=ss_sold_date_sk<= 2451483 and ss_coupon_amt='' and ss_quantity=''   group by ss_store_sk",)
+    # sqlExecutor.execute("set n_jobs=4")
     # sqlExecutor.execute(
-    #     "select sum(ss_sales_price)  from ss40g_600k_tes_gg_cpu_grid_search where ss_sold_date_sk between 2451119  and 2451483   group by ss_store_sk", n_jobs=1)
+    #     "select avg(ss_sales_price)  from ss40g_categorical_full where   2451119  <=ss_sold_date_sk<= 2451483 and ss_coupon_amt=''  and ss_quantity=''  group by ss_store_sk",)
+    # sqlExecutor.execute("set n_jobs=8")
     # sqlExecutor.execute(
-    #     "select avg(ss_sales_price)  from ss40g_600k_tes_gg_cpu_grid_search where ss_sold_date_sk between 2451119  and 2451483   group by ss_store_sk", n_jobs=1)
+    #     "select avg(ss_sales_price)  from ss40g_categorical_full where   2451119  <=ss_sold_date_sk<= 2451483 and ss_coupon_amt=''  and ss_quantity=''  group by ss_store_sk",)
 
-    # ("select count(ss_quantity)  from ss_600k where ss_sales_price between 1  and 20   group by ss_store_sk")
+
+def run_2_groupby(sqlExecutor):
+    sqlExecutor.execute("set b_print_to_screen='false'")
+    # sqlExecutor.execute("set device='cpu'")
+    sqlExecutor.execute(
+        "create table ss40g_gb2(ss_sales_price real, ss_sold_date_sk real) from '/data/tpcds/40G/ss_600k.csv' GROUP BY ss_store_sk,ss_quantity method uniform size 600000 ")  # ,ss_quantity
+    sqlExecutor.execute("set n_jobs=1")
+    sqlExecutor.execute(
+        "select count(ss_sales_price)  from ss40g_gb2 where   2451119  <=ss_sold_date_sk<= 2451483   group by ss_store_sk,ss_quantity;")
+    sqlExecutor.execute("set n_jobs=2")
+    sqlExecutor.execute(
+        "select count(ss_sales_price)  from ss40g_gb2 where   2451119  <=ss_sold_date_sk<= 2451483   group by ss_store_sk,ss_quantity;")
+    sqlExecutor.execute("set n_jobs=4")
+    sqlExecutor.execute(
+        "select count(ss_sales_price)  from ss40g_gb2 where   2451119  <=ss_sold_date_sk<= 2451483   group by ss_store_sk,ss_quantity;")
+    # sqlExecutor.execute("set n_jobs=8")
+    # sqlExecutor.execute(
+    #     "select count(ss_sales_price)  from ss40g_gb2 where   2451119  <=ss_sold_date_sk<= 2451483   group by ss_store_sk,ss_quantity;")
+    # sqlExecutor.execute("set n_jobs=16")
+    # sqlExecutor.execute(
+    #     "select count(ss_sales_price)  from ss40g_gb2 where   2451119  <=ss_sold_date_sk<= 2451483   group by ss_store_sk,ss_quantity;")
+    # sqlExecutor.execute("set n_jobs=20")
+    # sqlExecutor.execute(
+    #     "select count(ss_sales_price)  from ss40g_gb2 where   2451119  <=ss_sold_date_sk<= 2451483   group by ss_store_sk,ss_quantity;")
+
+
+def run_57_groups(sqlExecutor):
+    sqlExecutor.execute("set b_print_to_screen='False'")
+    sqlExecutor.execute("set n_mdn_layer_node=10")
+    sqlExecutor.execute("set n_jobs=1")
+    sqlExecutor.execute("set n_hidden_layer=2")
+    sqlExecutor.execute("set n_epoch=20")
+    sqlExecutor.execute("set b_grid_search='true'")
+
+    sqlExecutor.execute("set result2file='/home/u1796377/Desktop/hah.txt'")
+    sqlExecutor.execute(
+        "create table ss40g_57_node10_hidden2_grid_search(ss_sales_price real, ss_sold_date_sk real) from '/data/tpcds/40G/ss_600k.csv' GROUP BY ss_store_sk method uniform size  600 ")  # num_of_points57.csv
+    sqlExecutor.execute(
+        "select avg(ss_sales_price)  from ss40g_57_node10_hidden2_grid_search where   2451119  <=ss_sold_date_sk<= 2451483    group by ss_store_sk")
+    # sqlExecutor.execute("set n_jobs=2")
+    # sqlExecutor.execute(
+    #     "select avg(ss_sales_price)  from ss40g_57 where   2451119  <=ss_sold_date_sk<= 2451483    group by ss_store_sk",)
+    # sqlExecutor.execute("set n_jobs=4")
+    # sqlExecutor.execute(
+    #     "select avg(ss_sales_price)  from ss40g_57 where   2451119  <=ss_sold_date_sk<= 2451483    group by ss_store_sk",)
+    # sqlExecutor.execute("set n_jobs=8")
+    # sqlExecutor.execute(
+    #     "select avg(ss_sales_price)  from ss40g_57 where   2451119  <=ss_sold_date_sk<= 2451483    group by ss_store_sk",)
+
+
+def run_57_gogs(sqlExecutor):
+    # sqlExecutor.execute("set device='cpu'")
+    sqlExecutor.execute("set b_print_to_screen='False'")
+    sqlExecutor.execute("set n_mdn_layer_node=10")
+    sqlExecutor.execute("set n_jobs=1")
+    sqlExecutor.execute("set n_hidden_layer=2")
+    sqlExecutor.execute("set n_epoch=20")
+    sqlExecutor.execute("set b_grid_search='true'")
+
+    sqlExecutor.execute("set b_use_gg='true'")
+    sqlExecutor.execute("set n_per_gg=30")
+    sqlExecutor.execute("set b_grid_search='false'")
+    sqlExecutor.execute("set n_gaussians_reg=3")
+    sqlExecutor.execute("set n_gaussians_density=20")
+
+    # sqlExecutor.execute("set result2file='/home/u1796377/Desktop/hah.txt'")
+    sqlExecutor.execute(
+        "create table ss40g_57_gog(ss_sales_price real, ss_sold_date_sk real) from '/data/tpcds/40G/ss_600k.csv' GROUP BY ss_store_sk method uniform size  600 ")  # num_of_points57.csv
+    sqlExecutor.execute(
+        "select avg(ss_sales_price)  from ss40g_57_gog where   2451119  <=ss_sold_date_sk<= 2451483    group by ss_store_sk")
+
+    # sqlExecutor.execute("set n_jobs=2")
+    # sqlExecutor.execute(
+    #     "select avg(ss_sales_price)  from ss40g_57_gog where   2451119  <=ss_sold_date_sk<= 2451483    group by ss_store_sk")
 
 
 if __name__ == "__main__":

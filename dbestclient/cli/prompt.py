@@ -1,22 +1,22 @@
-from cmd import Cmd
-import os
 import json
+import os
+from cmd import Cmd
 
 from dbestclient.executor.executor import SqlExecutor
 
-config = {
-    'warehousedir': 'dbestwarehouse',
-    'verbose': 'True',
-    'b_show_latency': 'True',
-    'backend_server': 'None',
-    'epsabs': 10.0,
-    'epsrel': 0.1,
-    'mesh_grid_num': 20,
-    'limit': 30,
-    'csv_split_char': ',',
-    "num_epoch":400,
-    "reg_type":"mdn",
-}
+# config = {
+#     'warehousedir': 'dbestwarehouse',
+#     'verbose': 'True',
+#     'b_show_latency': 'True',
+#     'backend_server': 'None',
+#     'epsabs': 10.0,
+#     'epsrel': 0.1,
+#     'mesh_grid_num': 20,
+#     'limit': 30,
+#     'csv_split_char': ',',
+#     "num_epoch": 400,
+#     "reg_type": "mdn",
+# }
 
 
 class DBEstPrompt(Cmd):
@@ -26,25 +26,25 @@ class DBEstPrompt(Cmd):
         self.intro = "Welcome to DBEst: a model-based AQP engine! Type exit to exit!"
         self.query = ""
 
-        # deal with configuration file
-        if os.path.exists('config.json'):
-            print("Configuration file loaded.")
-            self.config = json.load(open('config.json'))
-        else:
-            print("Configuration file config.json does not exist! use default values")
-            self.config = config
-            json.dump(self.config, open('config.json', 'w'))
-        self.verbose = self.config['verbose']
-        self.b_show_latency = self.config['b_show_latency']
+        # # deal with configuration file
+        # if os.path.exists('config.json'):
+        #     print("Configuration file loaded.")
+        #     self.config = json.load(open('config.json'))
+        # else:
+        #     print("Configuration file config.json does not exist! use default values")
+        #     self.config = config
+        #     json.dump(self.config, open('config.json', 'w'))
+        # self.verbose = self.config['verbose']
+        # self.b_show_latency = self.config['b_show_latency']
 
         # deal with warehouse
-        if os.path.exists(self.config['warehousedir']):
+        if os.path.exists("dbestwarehouse"):
             print("warehouse is initialized.")
         else:
             print("warehouse does not exists, so initialize one.")
-            os.mkdir(self.config['warehousedir'])
+            os.mkdir("dbestwarehouse")
 
-        self.sqlExecutor = SqlExecutor(self.config)
+        self.sqlExecutor = SqlExecutor()
 
     # print the exit message.
     def do_exit(self, inp):
@@ -58,8 +58,8 @@ class DBEstPrompt(Cmd):
             self.query = self.query + inp + " "
         else:
             self.query += inp.split(";")[0]
-            if self.config['verbose']:
-                print("Executing query >>> " + self.query + "...")
+            # if self.config['verbose']:
+            #     print("Executing query >>> " + self.query + "...")
 
             # query execution goes here
             # -------------------------------------------->>
