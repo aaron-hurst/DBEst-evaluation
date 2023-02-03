@@ -288,8 +288,7 @@ class GenericMdn:
 class RegMdnGroupBy:
     """This class implements the regression using mixture density network for group by queries."""
 
-    def __init__(self, config, b_normalize_data=True):
-        # if b_store_training_data:
+    def __init__(self, config, b_normalize_data=True, b_store_training_data=False):
         self.x_points = None  # query range
         self.y_points = None  # aggregate value
         self.z_points = None  # group by balue
@@ -307,7 +306,7 @@ class RegMdnGroupBy:
         self.last_sigma = None
         self.config = config
         self.b_normalize_data = b_normalize_data
-        self.b_store_training_data=False
+        self.b_store_training_data=b_store_training_data
         self.enc = None
 
     def fit(
