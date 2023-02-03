@@ -96,7 +96,7 @@ class MdnQueryEngineNoRange(GenericQueryEngine):
         if self.config.config['b_use_gg']:
             raise ValueError("Method not implemented.")
         else:
-            config = self.config.copy()
+            config = self.config
             if runtime_config['v']:
                 logger.debug("training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
@@ -199,14 +199,14 @@ class MdnQueryEngineRangeNoCategorical(GenericQueryEngine):
         if self.config.config['b_use_gg']:
             raise ValueError("Method not implemented.")
         else:
-            config = self.config.copy()
+            config = self.config
             if runtime_config['v']:
                 logger.debug("training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
                 gbs_data, xs_data, ys_data, runtime_config,usecols=usecols)
 
             if runtime_config['v']:
-                print("training density...")
+                logger.debug("training density...")
             self.kde = KdeMdn(config, b_store_training_data=False).fit(
                 gbs_data, xs_data, runtime_config)
         return self
@@ -334,7 +334,7 @@ class MdnQueryEngineNoRangeCategorical(GenericQueryEngine):
         if self.config.config['b_use_gg']:
             raise ValueError("Method not implemented.")
         else:
-            config = self.config.copy()
+            config = self.config
 
             idx = 0
             total_points.pop("if_contain_x_categorical")
@@ -355,7 +355,7 @@ class MdnQueryEngineNoRangeCategorical(GenericQueryEngine):
                     print("GoGs is not supported yet")
                     return
                     # qe_mdn = MdnQueryEngineGoGs(
-                    #     config=self.config.copy()).fit(data[categorical_attributes], usecols["gb"],
+                    #     config=self.config).fit(data[categorical_attributes], usecols["gb"],
                     #                                    total_points[categorical_attributes], mdl_name, origin_table_name,
                     #                                    usecols["x_continous"][0], usecols["y"],
                     #               bayern
@@ -401,7 +401,7 @@ class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
         if self.config.config['b_use_gg']:
             raise ValueError("Method not implemented.")
         else:
-            config = self.config.copy()
+            config = self.config
             if runtime_config['v']:
                 logger.debug("training regression...")
 
@@ -829,10 +829,10 @@ class MdnQueryEngine(GenericQueryEngine):
                         #     host, slaves.get()[host], "select", query)
 
         elif func.lower() == "var":
-            print("predict var")
-
+            logger.debug("predict var")
             results = prepare_var(
-                self.kde, groups=groups, runtime_config=runtime_config)  # {"group":999.99}
+                self.kde, groups=groups, runtime_config=runtime_config
+            )
         else:
             raise NotImplementedError("unexpected aggregation.")
         runtime_config["b_print_to_screen"] = b_print_to_screen
@@ -1018,7 +1018,7 @@ class MdnQueryEngineGoGs():
                 chunk_group, network_size="small", runtime_config=runtime_config)
 
             engine = MdnQueryEngine(
-                kdeModelWrapper, config=self.config.copy())
+                kdeModelWrapper, config=self.config)
             self.enginesContainer[index] = engine
         return self
 
@@ -1136,10 +1136,10 @@ class MdnQueryEngineXCategorical(GenericQueryEngine):
                     data[categorical_attributes], runtime_config=runtime_config, network_size="large",)
 
                 qe_mdn = MdnQueryEngine(
-                    kdeModelWrapper, self.config.copy())
+                    kdeModelWrapper, self.config)
             else:  # use GoGs
                 qe_mdn = MdnQueryEngineGoGs(
-                    config=self.config.copy()).fit(data[categorical_attributes], usecols["gb"],
+                    config=self.config).fit(data[categorical_attributes], usecols["gb"],
                                                    total_points[categorical_attributes], mdl_name, origin_table_name,
                                                    usecols["x_continous"][0], usecols["y"],
                                                    runtime_config)
@@ -1300,10 +1300,10 @@ class MdnQueryEngineXCategoricalOneModel(GenericQueryEngine):
         if self.config.config['b_use_gg']:
             raise ValueError("Method not implemented.")
         else:
-            config = self.config.copy()
+            config = self.config
 
             if runtime_config['v']:
-                print("training density...")
+                logger.debug("training density...")
             # print("usecols", usecols)
             self.density = KdeMdn(config, b_store_training_data=False).fit(
                 gbs, xs, runtime_config)
@@ -1323,7 +1323,7 @@ class MdnQueryEngineXCategoricalOneModel(GenericQueryEngine):
             #         data[categorical_attributes], runtime_config=runtime_config)
 
             # qe_mdn = MdnQueryEngine(
-            #     kdeModelWrapper, self.config.copy())
+            #     kdeModelWrapper, self.config)
 
     def predicts(self, func: str, x_lb: float, x_ub: float, x_categorical_conditions, runtime_config, groups: list = None, filter_dbest=None):
         if "slaves" in runtime_config:

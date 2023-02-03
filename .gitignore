@@ -1,8 +1,10 @@
 # Project-specific
 .DS_Store
 .idea/
+.ipynb_checkpoints/
 .vscode/
 *.pyc
+*.sample
 config.json
 config.py
 dbest.sublime-workspace
@@ -10,12 +12,11 @@ dbestclient.egg-info/
 dbestwarehouse/
 experiments/comparisons_for_paper/
 experiments/huawei/
+experiments/results/stratified/
 MNIST_data/
+my_evaluation/
 notebook/
 resources/
-experiments/results/stratified/
-*.sample
-.ipynb_checkpoints/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

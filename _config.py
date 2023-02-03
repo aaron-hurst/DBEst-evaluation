@@ -8,4 +8,3 @@ LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s - %(message)s"
 DATA_DIR = os.path.join("path", "to", "data", "directory")
 RESULTS_DIR = os.path.join("path", "to", "results", "directory")
 QUERIES_DIR = os.path.join("path", "to", "queries", "directory")
-WAREHOUSE_DIR = os.path.join("path", "to", "dbest", "wharehouse", "directory")

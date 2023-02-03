@@ -17,9 +17,13 @@
 # limitations under the License.
 #
 
+import logging
+
 import numpy as np
 
 # from dbestclient.ml.mdn import KdeMdn, RegMdnGroupBy
+
+logger = logging.getLogger(__name__)
 
 
 def approx_integrate(func: callable, x_lb: float, x_ub: float, n_division=20) -> float:
@@ -100,9 +104,8 @@ def prepare_reg_density_data(density, x_lb: float, x_ub: float, groups: list, re
     return pre_density, pre_reg, step
 
 def prepare_var(density, groups, runtime_config):
-    print("groups", groups)
-
-    return density.var(groups, runtime_config) #{"group":99999.99}
+    logger.debug("groups", groups)
+    return density.var(groups, runtime_config)
 
 
 def approx_count(pred_density, step: float):

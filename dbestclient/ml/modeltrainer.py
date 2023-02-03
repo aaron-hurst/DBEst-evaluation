@@ -113,7 +113,7 @@ class KdeModelTrainer:
         #         device = torch.device("cpu")
         # self.device = device
 
-    def fit_from_df(self, df, runtime_config, network_size=None,  b_shuffle_data=True):
+    def fit_from_df(self, df, runtime_config, network_size=None, b_shuffle_data=True):
         # init parameters
         device = runtime_config["device"]
         b_plot = runtime_config["plot"]
@@ -137,8 +137,8 @@ class KdeModelTrainer:
             y = df[self.yheader[0]].values
         groupby = df[self.groupby_attribute].values
 
-        xzs_train = np.concatenate(
-            (x[:, np.newaxis], groupby), axis=1)
+        # xzs_train = np.concatenate(
+        #     (x[:, np.newaxis], groupby), axis=1)
 
         if network_size is None:
             if b_skip_reg_training:
@@ -146,18 +146,18 @@ class KdeModelTrainer:
             else:
                 logger.debug("training regression...")
                 logger.debug("*"*80)
-                config = self.config.copy()
-                reg = RegMdnGroupBy(config).fit(
+                # config = self.config
+                reg = RegMdnGroupBy(self.config).fit(
                     groupby, x, y, runtime_config)
 
             if b_skip_density_training:
                 density = None
             else:
-                print("training density...")
+                logger.debug("training density...")
                 logger.debug("*"*80)
                 # density = RegMdn(dim_input=1,n_mdn_layer_node=20)
-                config = self.config.copy()
-                density = KdeMdn(config,
+                # config = self.config
+                density = KdeMdn(self.config,
                                  b_store_training_data=b_plot).fit(groupby, x, runtime_config)
                 if b_plot:
                     density.plot_density_3d(runtime_config=runtime_config)
@@ -169,27 +169,27 @@ class KdeModelTrainer:
                 else:
                     logger.debug("training regression...")
                     logger.debug("*"*80)
-                    config = self.config.copy()
+                    # config = self.config
                     # config.config["n_epoch"] = 10
-                    config.config["n_gaussians_reg"] = 3
+                    self.config.config["n_gaussians_reg"] = 3
                     # config.config["n_mdn_layer_node"] = 10
                     # config.config["b_grid_search"] = False
-                    reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
+                    reg = RegMdnGroupBy(self.config, b_store_training_data=False).fit(
                         groupby, x, y, runtime_config)
 
                 if b_skip_density_training:
                     density = None
                 else:
-                    print("training density...")
+                    logger.debug("training density...")
                     logger.debug("*"*80)
                     # density = RegMdn(dim_input=1,n_mdn_layer_node=20)
-                    config = self.config.copy()
+                    # config = self.config
                     # config.config["n_epoch"] = 20
-                    config.config["n_gaussions_density"] = 10
+                    self.config.config["n_gaussions_density"] = 10
                     # config.config["n_mdn_layer_node"] = 10
                     # config.config["b_grid_search"] = False
 
-                    density = KdeMdn(config, b_store_training_data=False).fit(groupby, x, runtime_config)
+                    density = KdeMdn(self.config, b_store_training_data=False).fit(groupby, x, runtime_config)
 
             elif network_size.lower() == "large":
                 if b_skip_reg_training:
@@ -197,27 +197,27 @@ class KdeModelTrainer:
                 else:
                     logger.debug("training regression...")
                     logger.debug("*"*80)
-                    config = self.config.copy()
+                    # config = self.config
                     # config.config["n_epoch"] = 20
-                    config.config["n_gaussians_reg"] = 5
+                    self.config.config["n_gaussians_reg"] = 5
                     # config.config["n_mdn_layer_node"] = 20
                     # config.config["b_grid_search"] = False
-                    reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
+                    reg = RegMdnGroupBy(self.config, b_store_training_data=False).fit(
                         groupby, x, y, runtime_config
                     )
 
                 if b_skip_density_training:
                     density = None
                 else:
-                    print("training density...")
+                    logger.debug("training density...")
                     logger.debug("*"*80)
-                    config = self.config.copy()
+                    # config = self.config
                     # config.config["n_epoch"] = 20
-                    config.config["n_gaussians_density"] = 20
+                    self.config.config["n_gaussians_density"] = 20
                     # config.config["n_mdn_layer_node"] = 20
                     # config.config["b_grid_search"] = False
                     # density = RegMdn(dim_input=1,n_mdn_layer_node=20)
-                    density = KdeMdn(config, b_store_training_data=False).fit(
+                    density = KdeMdn(self.config, b_store_training_data=False).fit(
                         groupby, x, runtime_config)
 
             elif network_size.lower() == "testing":
@@ -226,25 +226,25 @@ class KdeModelTrainer:
                 else:
                     logger.debug("training regression...")
                     logger.debug("*"*80)
-                    config = self.config.copy()
-                    config.config["n_epoch"] = 1
-                    config.config["n_gaussians_reg"] = 2
-                    config.config["n_mdn_layer_node"] = 20
-                    config.config["b_grid_search"] = False
-                    reg = RegMdnGroupBy(config, b_store_training_data=False,).fit(
+                    # config = self.config
+                    self.config.config["n_epoch"] = 1
+                    self.config.config["n_gaussians_reg"] = 2
+                    self.config.config["n_mdn_layer_node"] = 20
+                    self.config.config["b_grid_search"] = False
+                    reg = RegMdnGroupBy(self.config, b_store_training_data=False,).fit(
                         groupby, x, y, runtime_config)
                 if b_skip_density_training:
                     density = None
                 else:
-                    print("training density...")
+                    logger.debug("training density...")
                     logger.debug("*"*80)
                     # density = RegMdn(dim_input=1,n_mdn_layer_node=20)
-                    config = self.config.copy()
-                    config.config["n_epoch"] = 2
-                    config.config["n_gaussians_density"] = 8
-                    config.config["n_mdn_layer_node"] = 10
-                    config.config["b_grid_search"] = False
-                    density = KdeMdn(config, b_store_training_data=False).fit(
+                    # config = self.config
+                    self.config.config["n_epoch"] = 2
+                    self.config.config["n_gaussians_density"] = 8
+                    self.config.config["n_mdn_layer_node"] = 10
+                    self.config.config["b_grid_search"] = False
+                    density = KdeMdn(self.config, b_store_training_data=False).fit(
                         groupby, x, runtime_config)
 
             else:

@@ -221,6 +221,11 @@ def normalize(x_point: float, mean: float, width: float) -> float:
     Returns:
         float: the normalized value
     """
+    if width == 0:
+        if isinstance(x_point, (list, np.ndarray)):
+            return np.zeros_like(x_point)
+        else:
+            return 0        
     return (x_point - mean) / width * 2
 
 
@@ -599,7 +604,7 @@ class RegMdnGroupBy:
         self.b_store_training_data = True
         for para in combs:
             logger.debug("Grid search for parameter set :", para)
-            config = self.config.copy()
+            config = self.config
             config.config["n_gaussians_reg"] = para["gaussian_reg"]
             # config.config["n_gaussians_density"] = para['gaussian_density']
             config.config["n_epoch"] = para["epoch"]
@@ -626,7 +631,7 @@ class RegMdnGroupBy:
         self.sample_g = None
         self.sample_average_y = None
 
-        config = self.config.copy()
+        config = self.config
         config.config["n_gaussians_reg"] = para["gaussian_reg"]
         # config.config["n_gaussians_density"] = para['gaussian_density']
         # config.config["n_epoch"] = para['epoch']
@@ -1565,7 +1570,7 @@ class KdeMdn:
         self.b_store_training_data = True
         for para in combs:
             print("Grid search for parameter set :", para)
-            config = self.config.copy()
+            config = self.config
             config.config["n_gaussians_density"] = para["gaussian"]
             config.config["n_epoch"] = para["epoch"]
             config.config["n_mdn_layer_node_density"] = para["node"]
@@ -1592,7 +1597,7 @@ class KdeMdn:
         self.sample_x = None
         self.sample_g = None
         self.sample_average_y = None
-        config = self.config.copy()
+        config = self.config
         config.config["n_gaussians_density"] = para["gaussian"]
         config.config["num_epoch"] = para["epoch"]
         config.config["n_mdn_layer_node_density"] = para["node"]
@@ -1744,31 +1749,31 @@ class KdeMdn:
         mus = mus.detach().numpy().reshape(len(zs), -1)  # [0]
         pis = pis.detach().numpy()  # [0]  # .reshape(-1,2)
         sigmas = sigmas.detach().numpy().reshape(len(sigmas), -1)  # [0]
-        print("pis", pis)
-        print("sigmas", sigmas)
-        print("mus", mus)
-        print("mean, width", self.meanx, self.widthx)
+        logger.debug("pis", pis)
+        logger.debug("sigmas", sigmas)
+        logger.debug("mus", mus)
+        logger.debug("mean, width", self.meanx, self.widthx)
         sigmas = sigmas * 0.5 * self.widthx  # + self.meanx
         mus = mus * 0.5 * self.widthx + self.meanx
-        print("mus", mus)
-        print("mus[0]", mus[0])
-        print("pis[0]", pis[0])
-        print("sigma[0]", sigmas[0])
+        logger.debug("mus", mus)
+        logger.debug("mus[0]", mus[0])
+        logger.debug("pis[0]", pis[0])
+        logger.debug("sigma[0]", sigmas[0])
 
         mu_avg_2 = np.power(np.sum(np.multiply(mus, pis, dtype="float64"), axis=1), 2)
-        print("mu_avg_2", mu_avg_2[0])
+        logger.debug("mu_avg_2", mu_avg_2[0])
         mu_2 = np.power(mus, 2, dtype="float64")
         sigmas_2 = np.power(sigmas, 2, dtype="float64")
         adds = np.add(mu_2, sigmas_2, dtype="float64")
-        print("adds", adds[0])
+        logger.debug("adds", adds[0])
         sums = np.multiply(adds, pis, dtype="float64").sum(axis=1, dtype="float64")
-        print("sums", sums[0])
-        print("types", type(sums[0]))
+        logger.debug("sums", sums[0])
+        logger.debug("types", type(sums[0]))
         result = np.subtract(sums, mu_avg_2, dtype="float64").tolist()
         result = np.sqrt(result)
-        print("result", result)
-        print(len(result))
-        result = dict(zip(zs, result))
+        logger.debug("result", result)
+        logger.debug(len(result))
+        result = pd.DataFrame(zip(zs, result))
         return result
 
     def normalize(self, x: list, mean: float, width: float):
@@ -1782,6 +1787,8 @@ class KdeMdn:
         Returns:
             list: the normalized data.
         """
+        if width == 0:
+            return np.zeros_like(x)
         return (x - mean) / width * 2
 
     def denormalize(self, x, mean, width):

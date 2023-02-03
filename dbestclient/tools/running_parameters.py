@@ -25,7 +25,7 @@ RUNTIME_CONF = {
     "n_jobs": 1,
     "v": True,
     "b_show_latency": True,
-    "b_print_to_screen": True,
+    "b_print_to_screen": False,
     "result2file": None,
     # integral related parameters
     "b_use_integral": False,
@@ -63,9 +63,7 @@ class DbestConfig:
             "reg_type": "mdn",
             "density_type": "mdn",  # qreg
             "backend_server": "None",
-            # "n_jobs": 4,
             "b_grid_search": False,
-            # "device": "cpu",
             # "b_reg_mean":'True',
             "b_dummy_gb": False,
             # file format configuration.
@@ -106,10 +104,7 @@ class DbestConfig:
             key (str): the key
             value (str or bool): the value
         """
-        if value is not None:
-            self.config[key] = value
-        else:
-            raise ValueError(f"Cannot set {key} to None")
+        self.config[key] = value
 
     def get_parameter(self, key: str):
         try:
