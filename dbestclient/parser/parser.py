@@ -257,7 +257,7 @@ class DBEstParser:
         except ValueError:
             pass
         y_list = (
-            item.lower().replace("(", " ").replace(")", " ").replace(",", " ").split()
+            item.replace("(", " ").replace(")", " ").replace(",", " ").split()
         )
         # print("y_list", y_list)
         # print("y_list", y_list)
@@ -286,7 +286,7 @@ class DBEstParser:
             pass
 
         x_list = (
-            item.lower().replace("(", " ").replace(")", " ").replace(",", " ").split()
+            item.replace("(", " ").replace(")", " ").replace(",", " ").split()
         )
         # print("x_list", x_list, "---------->")
         continous = []

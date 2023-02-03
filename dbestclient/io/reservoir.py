@@ -82,7 +82,7 @@ class ReservoirSampling:
             if self.header is None:
                 # skip the first header row
                 first_row = next(iterator)
-                self.header = first_row.replace("\n", "").lower().split(split_char)
+                self.header = first_row.replace("\n", "").split(split_char)
             try:
                 j = 0
                 # iterator = iter(data)
