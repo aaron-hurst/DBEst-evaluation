@@ -1,0 +1,13 @@
+category_encoders
+dill
+gensim==3.8.3
+matplotlib
+numpy
+pandas
+qregpy
+scikit-learn
+scipy
+sphinx
+sqlparse==0.3.1
+torch
+tox
