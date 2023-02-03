@@ -745,11 +745,7 @@ class SqlExecutor:
                 predictions = None
                 # DML, provide the prediction using models
                 mdl = self.parser.get_from_name()
-                gb_to_print, [
-                    func,
-                    yheader,
-                    distinct_condition,
-                ] = self.parser.get_dml_aggregate_function_and_variable()
+                _, [func, yheader, *_] = self.parser.get_dml_aggregate_function_and_variable()
                 # for query with WHERE clause containing range selector
                 if (
                     self.parser.if_where_exists()
@@ -772,9 +768,8 @@ class SqlExecutor:
                     ]
                     x_header_density = model.density_column
 
-                    [x_lb, x_ub] = [
-                        where_conditions[2][x_header_density][i] for i in [0, 1]
-                    ]
+                    x_lb = where_conditions[2][x_header_density][0]
+                    x_ub = where_conditions[2][x_header_density][1]
                     filter_dbest = dict(where_conditions[2])
                     filter_dbest = [
                         filter_dbest[next(iter(filter_dbest))][i] for i in [0, 1]
