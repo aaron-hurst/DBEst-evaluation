@@ -82,10 +82,10 @@ class SqlExecutor:
                 n_model += 1
 
         if n_model > 0:
-            logger.info("Loaded " + str(n_model) + " models.", end=" ")
+            logger.info("Loaded " + str(n_model) + " models.")
             if self.runtime_config["b_show_latency"]:
                 t2 = datetime.now()
-                logger.debug("time cost ", (t2 - t1).total_seconds(), "s")
+                logger.debug("time cost " + str((t2 - t1).total_seconds()) + " s")
 
     def init_slaves(self):
         file_name = os.path.join(self.config.config["warehousedir"], "slaves")
@@ -727,7 +727,7 @@ class SqlExecutor:
                 time2 = datetime.now()
                 t = (time2 - time1).seconds
                 if self.runtime_config["b_show_latency"]:
-                    logger.debug("time cost: " + str(t) + "s.")
+                    logger.debug("time cost: " + str(t) + " s.")
                 logger.debug("------------------------")
 
                 # rest config
@@ -813,12 +813,12 @@ class SqlExecutor:
                     )
 
                 if self.runtime_config["b_print_to_screen"]:
-                    # logger.debug(predictions.to_csv(sep=',', index=False))  # sep='\t'
-                    logger.debug(predictions.to_string(index=False))  # max_rows=5
+                    # logger.info(predictions.to_csv(sep=',', index=False))  # sep='\t'
+                    logger.info(predictions.to_string(index=False))  # max_rows=5
 
                 if self.runtime_config["result2file"]:
                     predictions.to_csv(self.runtime_config["result2file"],header=False, sep=',', index=False, quoting=csv.QUOTE_NONE, quotechar="",  escapechar=" ")
-                    # logger.debug(predictions.to_csv(sep=',', index=False))  # sep='\t'
+                    # logger.info(predictions.to_csv(sep=',', index=False))  # sep='\t'
                     # with open(self.runtime_config["result2file"],'w') as f:
                     #     out = 
                     #     f.write(predictions.to_string(index=False))  # max_rows=5
@@ -826,7 +826,7 @@ class SqlExecutor:
                 if self.runtime_config["b_show_latency"]:
                     end_time = datetime.now()
                     time_cost = (end_time - start_time).total_seconds()
-                    logger.debug("Time cost: %.4fs." % time_cost)
+                    logger.info("Time cost: %.4f s." % time_cost)
                 logger.debug("------------------------")
                 return predictions
 
@@ -914,7 +914,7 @@ class SqlExecutor:
                 if self.runtime_config["v"]:
                     t_end = datetime.now()
                     time_cost = (t_end - t_start).total_seconds()
-                    logger.debug("Time cost: %.4fs." % time_cost)
+                    logger.debug("Time cost: %.4f s." % time_cost)
             else:
                 raise ValueError("Unsupported query type, please check your SQL.")
 

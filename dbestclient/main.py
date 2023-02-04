@@ -4,6 +4,7 @@
 # the University of Warwick
 # Q.Ma.2@warwick.ac.uk
 import argparse
+import logging
 import sys
 
 from dbestclient.cli.prompt import DBEstPrompt
@@ -13,6 +14,7 @@ from dbestclient.socket import app_client, app_server
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     p = DBEstPrompt()
     p.cmdloop()
 
