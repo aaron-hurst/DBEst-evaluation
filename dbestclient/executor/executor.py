@@ -49,17 +49,16 @@ class SqlExecutor:
     This is the executor for the SQL query.
     """
 
-    def __init__(self):
+    def __init__(self, warehouse_path=None, save_sample=False):
         self.parser = None
-        self.config = DbestConfig()  # model-related configuration
+        self.warehouse_path = warehouse_path
+        self.config = DbestConfig(warehouse_path)  # model-related configuration
         self.runtime_config = RUNTIME_CONF
         self.last_config = None
         self.model_catalog = DBEstModelCatalog()
         self.init_slaves()
         self.init_model_catalog()
-
-        self.save_sample = False
-
+        self.save_sample = save_sample
         self.n_total_records = None
         self.use_kde = True
 
@@ -128,7 +127,7 @@ class SqlExecutor:
                 if self.last_config:
                     self.config = self.last_config
                 else:
-                    self.config = DbestConfig()
+                    self.config = DbestConfig(self.warehouse_path)
                 # DDL, create the model as requested
                 mdl = self.parser.get_ddl_model_name()
                 tbl = self.parser.get_from_name()
@@ -841,7 +840,7 @@ class SqlExecutor:
                 if self.last_config:
                     self.config = self.last_config
                 else:
-                    self.config = DbestConfig()
+                    self.config = DbestConfig(self.warehouse_path)
                 try:
                     key, value = self.parser.get_set_variable_value()
                     if key in self.config.get_config():

@@ -56,26 +56,26 @@ def shrink_runtime_config(runtime_config):
 class DbestConfig:
     """This is the configuration file for DBEstClient."""
 
-    def __init__(self):
+    def __init__(self, warehouse_path=None):
+        if warehouse_path is None:
+            warehouse_path = "dbestwarehouse"
         self.config = {
-            # system-level configuration.
-            # 'warehousedir': '/home/u1796377/Programs/dbestwarehouse',
-            "warehousedir": "dbestwarehouse",
-            # "warehousedir": "/home/runner/work/DBEstClient/DBEstClient/",
+            # System-level configuration.
+            "warehousedir": warehouse_path,
             "reg_type": "mdn",
             "density_type": "mdn",  # qreg
             "backend_server": "None",
-            # "n_jobs": 4,
             "b_grid_search": False,
-            # "device": "cpu",
             # "b_reg_mean":'True',
-            "b_dummy_gb": False,
-            # file format configuration.
+            "b_dummy_gb": False,  # not used?
+            
+            # File format configuration.
             "n_total_point": None,
             "scaling_factor": None,
             "csv_split_char": ",",
             "table_header": None,
             "accept_filter": False,
+            
             # MDN related parameters
             "n_epoch": 20,
             "n_gaussians_reg": 3,
