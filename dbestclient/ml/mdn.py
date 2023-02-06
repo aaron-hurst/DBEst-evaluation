@@ -599,7 +599,7 @@ class RegMdnGroupBy:
         self.b_store_training_data = True
         for para in combs:
             print("Grid search for parameter set :", para)
-            config = self.config.copy()
+            config = self.config
             config.config["n_gaussians_reg"] = para["gaussian_reg"]
             # config.config["n_gaussians_density"] = para['gaussian_density']
             config.config["n_epoch"] = para["epoch"]
@@ -626,7 +626,7 @@ class RegMdnGroupBy:
         self.sample_g = None
         self.sample_average_y = None
 
-        config = self.config.copy()
+        config = self.config
         config.config["n_gaussians_reg"] = para["gaussian_reg"]
         # config.config["n_gaussians_density"] = para['gaussian_density']
         # config.config["n_epoch"] = para['epoch']
@@ -1565,7 +1565,7 @@ class KdeMdn:
         self.b_store_training_data = True
         for para in combs:
             print("Grid search for parameter set :", para)
-            config = self.config.copy()
+            config = self.config
             config.config["n_gaussians_density"] = para["gaussian"]
             config.config["n_epoch"] = para["epoch"]
             config.config["n_mdn_layer_node_density"] = para["node"]
@@ -1592,7 +1592,7 @@ class KdeMdn:
         self.sample_x = None
         self.sample_g = None
         self.sample_average_y = None
-        config = self.config.copy()
+        config = self.config
         config.config["n_gaussians_density"] = para["gaussian"]
         config.config["num_epoch"] = para["epoch"]
         config.config["n_mdn_layer_node_density"] = para["node"]

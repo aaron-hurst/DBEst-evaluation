@@ -145,7 +145,7 @@ class KdeModelTrainer:
             else:
                 logger.debug("training regression...")
                 logger.debug("*"*80)
-                config = self.config.copy()
+                config = self.config
                 reg = RegMdnGroupBy(config).fit(
                     groupby, x, y, runtime_config)
 
@@ -155,7 +155,7 @@ class KdeModelTrainer:
                 logger.debug("training density...")
                 logger.debug("*"*80)
                 # density = RegMdn(dim_input=1,n_mdn_layer_node=20)
-                config = self.config.copy()
+                config = self.config
                 density = KdeMdn(config,
                                  b_store_training_data=b_plot).fit(groupby, x, runtime_config)
                 if b_plot:
@@ -168,7 +168,7 @@ class KdeModelTrainer:
                 else:
                     logger.debug("training regression...")
                     logger.debug("*"*80)
-                    config = self.config.copy()
+                    config = self.config
                     # config.config["n_epoch"] = 10
                     config.config["n_gaussians_reg"] = 3
                     # config.config["n_mdn_layer_node"] = 10
@@ -182,7 +182,7 @@ class KdeModelTrainer:
                     logger.debug("training density...")
                     logger.debug("*"*80)
                     # density = RegMdn(dim_input=1,n_mdn_layer_node=20)
-                    config = self.config.copy()
+                    config = self.config
                     # config.config["n_epoch"] = 20
                     config.config["n_gaussions_density"] = 10
                     # config.config["n_mdn_layer_node"] = 10
@@ -197,7 +197,7 @@ class KdeModelTrainer:
                 else:
                     logger.debug("training regression...")
                     logger.debug("*"*80)
-                    config = self.config.copy()
+                    config = self.config
                     # config.config["n_epoch"] = 20
                     config.config["n_gaussians_reg"] = 5
                     # config.config["n_mdn_layer_node"] = 20
@@ -210,7 +210,7 @@ class KdeModelTrainer:
                 else:
                     logger.debug("training density...")
                     logger.debug("*"*80)
-                    config = self.config.copy()
+                    config = self.config
                     # config.config["n_epoch"] = 20
                     config.config["n_gaussians_density"] = 20
                     # config.config["n_mdn_layer_node"] = 20
@@ -225,7 +225,7 @@ class KdeModelTrainer:
                 else:
                     print("training regression...")
                     print("*"*80)
-                    config = self.config.copy()
+                    config = self.config
                     config.config["n_epoch"] = 1
                     config.config["n_gaussians_reg"] = 2
                     config.config["n_mdn_layer_node"] = 20
@@ -238,7 +238,7 @@ class KdeModelTrainer:
                     print("training density...")
                     print("*"*80)
                     # density = RegMdn(dim_input=1,n_mdn_layer_node=20)
-                    config = self.config.copy()
+                    config = self.config
                     config.config["n_epoch"] = 2
                     config.config["n_gaussians_density"] = 8
                     config.config["n_mdn_layer_node"] = 10

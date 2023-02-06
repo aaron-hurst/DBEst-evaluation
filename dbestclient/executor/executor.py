@@ -247,12 +247,12 @@ class SqlExecutor:
                         n_total_point=n_total_point,
                         x_min_value=-np.inf,
                         x_max_value=np.inf,
-                        config=self.config.copy(),
+                        config=self.config,
                     ).fit_from_df(
                         xys["data"], self.runtime_config, network_size="large"
                     )
 
-                    qe_mdn = MdnQueryEngine(kdeModelWrapper, config=self.config.copy())
+                    qe_mdn = MdnQueryEngine(kdeModelWrapper, config=self.config)
 
                     qe_mdn.serialize2warehouse(
                         self.config.get_config()["warehousedir"], self.runtime_config
@@ -280,7 +280,7 @@ class SqlExecutor:
                             n_sample_point,
                             x_min_value=-np.inf,
                             x_max_value=np.inf,
-                            config=self.config.copy(),
+                            config=self.config,
                         ).fit_from_df(xys, self.runtime_config)
                         groupby_model_wrapper.serialize2warehouse(
                             self.config.get_config()["warehousedir"]
@@ -369,7 +369,7 @@ class SqlExecutor:
                             # use one model to support all categorical attribute
                             if self.config.config["one_model"]:
                                 qe = MdnQueryEngineNoRangeCategoricalOneModel(
-                                    self.config.copy()
+                                    self.config
                                 )
                                 usecols = {
                                     "y": yheader,
@@ -427,7 +427,7 @@ class SqlExecutor:
                                         n_total_point = sampler.sample.get_ft()
                                         # logger.debug("ft", n_total_point)
                                         qe = QueryEngineFrequencyTable(
-                                            self.config.copy()
+                                            self.config
                                         )
                                         qe.fit(
                                             mdl,
@@ -481,7 +481,7 @@ class SqlExecutor:
                                 ):  # For WHERE clause without categorical equality
                                     n_total_point.pop("if_contain_x_categorical")
                                     qe_mdn = MdnQueryEngineNoRange(
-                                        config=self.config.copy()
+                                        config=self.config
                                     )
                                     qe_mdn.fit(
                                         mdl,
@@ -493,7 +493,7 @@ class SqlExecutor:
                                     )
                                 else:  # For WHERE clause with categorical equality
                                     qe_mdn = MdnQueryEngineNoRangeCategorical(
-                                        config=self.config.copy()
+                                        config=self.config
                                     )
                                     qe_mdn.fit(
                                         mdl,
@@ -525,7 +525,7 @@ class SqlExecutor:
                                             n_total_point=n_total_point,
                                             x_min_value=-np.inf,
                                             x_max_value=np.inf,
-                                            config=self.config.copy(),
+                                            config=self.config,
                                         ).fit_from_df(
                                             xys["data"],
                                             self.runtime_config,
@@ -533,7 +533,7 @@ class SqlExecutor:
                                         )
 
                                         qe_mdn = MdnQueryEngine(
-                                            kdeModelWrapper, config=self.config.copy()
+                                            kdeModelWrapper, config=self.config
                                         )
                                         qe_mdn.serialize2warehouse(
                                             self.config.get_config()["warehousedir"],
@@ -545,7 +545,7 @@ class SqlExecutor:
 
                                     else:
                                         queryEngineBundle = MdnQueryEngineGoGs(
-                                            config=self.config.copy()
+                                            config=self.config
                                         ).fit(
                                             xys["data"],
                                             groupby_attribute,
@@ -569,7 +569,7 @@ class SqlExecutor:
                                     # use a single model to support categorical conditions.
                                     if self.config.config["one_model"]:
                                         qe = MdnQueryEngineXCategoricalOneModel(
-                                            self.config.copy()
+                                            self.config
                                         )
                                         usecols = {
                                             "y": yheader,
@@ -617,7 +617,7 @@ class SqlExecutor:
                                         )
                                     else:
                                         qe = MdnQueryEngineXCategorical(
-                                            self.config.copy()
+                                            self.config
                                         )
                                         qe.fit(
                                             mdl,
@@ -664,7 +664,7 @@ class SqlExecutor:
                                     xs_data = xs_data.reshape(1, -1)[0]
 
                                     qe = MdnQueryEngineXCategoricalOneModel(
-                                        self.config.copy()
+                                        self.config
                                     )
 
                                     qe.fit(
@@ -701,7 +701,7 @@ class SqlExecutor:
                                     xs_data = xs_data.reshape(1, -1)[0]
 
                                     qe = MdnQueryEngineRangeNoCategorical(
-                                        self.config.copy()
+                                        self.config
                                     )
                                     qe.fit(
                                         mdl,
