@@ -216,6 +216,11 @@ def normalize(x_point: float, mean: float, width: float) -> float:
     Returns:
         float: the normalized value
     """
+    if width == 0:
+        if isinstance(x_point, (list, np.ndarray)):
+            return np.zeros_like(x_point)
+        else:
+            return 0
     return (x_point - mean) / width * 2
 
 
@@ -1307,6 +1312,8 @@ class RegMdn:
         Returns:
             [type]: [description]
         """
+        if width == 0:
+            return np.zeros_like(x)
         return (x - mean) / width * 2
 
     def denormalize(self, x, mean, width):
@@ -1775,6 +1782,8 @@ class KdeMdn:
         Returns:
             list: the normalized data.
         """
+        if width == 0:
+            return np.zeros_like(x)
         return (x - mean) / width * 2
 
     def denormalize(self, x, mean, width):
