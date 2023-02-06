@@ -168,11 +168,13 @@ class ReservoirSampling:
 
                 if usecols["x_continous"]:
                     columns_continous = columns_continous + usecols["x_continous"]
+                columns_continous = list(set(columns_continous))
 
                 columns_categorial = []
                 if usecols["x_categorical"]:
-                    # columns = columns + usecols['x_categorical']
                     columns_categorial = columns_categorial + usecols["x_categorical"]
+                columns_categorial = list(set(columns_categorial))
+
                 if usecols["gb"]:
                     for col in usecols["gb"]:
                         if col not in columns_continous + columns_categorial:

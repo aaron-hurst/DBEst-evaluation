@@ -69,11 +69,13 @@ class UseCols:
         columns_as_continous = [self.usecols['y'][0]]
         if self.usecols['x_continous']:
             columns_as_continous = columns_as_continous + self.usecols['x_continous']
+        columns_as_continous = list(set(columns_as_continous))
 
         if self.usecols["gb"]:
             columns_as_categorical = self.usecols["x_categorical"] + self.usecols["gb"]
         else:
             columns_as_categorical = self.usecols["x_categorical"]
+        columns_as_categorical = list(set(columns_as_categorical))
 
         # remove the x column in continous if the column also appear in group by
         for col_item in columns_as_continous:
