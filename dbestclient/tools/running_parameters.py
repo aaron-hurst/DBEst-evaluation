@@ -78,8 +78,8 @@ class DbestConfig:
             
             # MDN related parameters
             "n_epoch": 20,
-            "n_gaussians_reg": 3,
-            "n_gaussians_density": 10,
+            "n_gaussians_reg": 5,
+            "n_gaussians_density": 20,
             "b_use_gg": False,
             "n_per_gg": 260,
             "n_hidden_layer": 1,

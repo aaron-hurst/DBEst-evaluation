@@ -113,7 +113,7 @@ class KdeModelTrainer:
         #         device = torch.device("cpu")
         # self.device = device
 
-    def fit_from_df(self, df, runtime_config, network_size=None,  b_shuffle_data=True):
+    def fit_from_df(self, df, runtime_config, network_size=None, b_shuffle_data=True):
         # init parameters
         device = runtime_config["device"]
         b_plot = runtime_config["plot"]

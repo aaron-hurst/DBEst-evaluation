@@ -743,7 +743,8 @@ class MdnQueryEngine(GenericQueryEngine):
                 # exit()
                 # print("groups", groups)
                 pre_density, pre_reg, step = prepare_reg_density_data(
-                    self.kde, x_lb, x_ub, groups=groups, reg=self.reg, runtime_config=runtime_config)
+                    self.kde, x_lb, x_ub, groups=groups, reg=self.reg, runtime_config=runtime_config
+                )
                 # print("pre_density, pre_reg", pre_density,)
                 # print(pre_reg)
                 # exit()

@@ -94,7 +94,9 @@ def aggregate(data, agg):
 
 
 def get_relative_error(exact, estimate):
-    if exact != 0:
+    if np.isnan(estimate):
+        return 100
+    elif (exact != 0):
         return abs(estimate - exact) / exact * 100
     elif estimate == 0:
         return 0
@@ -350,11 +352,12 @@ def main():
     # Run a single experiment
     # run_experiment("kaggle", "aquaponics_all", 1000)
     # run_experiment("kaggle", "smart_building_system_all", 1000)
-    run_experiment("kaggle", "light_detection", 1000)
+    # run_experiment("kaggle", "light_detection", sample_size=1000)
+    run_experiment("kaggle", "light_detection", sample_size=1000)
     # run_experiment("uci", "household_power_consumption", 1000)
     # run_experiment("uci", "gas_sensor_home_activity", 1000)
 
-    # run_experiment("kaggle", "light_detection", 1000)
+    # run_experiment("kaggle", "light_detection", 10000)
 
 
 if __name__ == "__main__":

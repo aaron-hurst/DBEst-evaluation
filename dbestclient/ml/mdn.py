@@ -1523,7 +1523,7 @@ class KdeMdn:
                 my_lr_scheduler.step()
             # turn the model to eval mode.
             self.model.eval()
-            print("finish mdn training...")
+            logger.debug("finish mdn training...")
             return self
         else:  # grid search
             # , b_normalize=b_normalize
