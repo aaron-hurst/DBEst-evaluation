@@ -21,6 +21,7 @@ AGGREGATIONS = [
     "MIN",
     "VAR",
 ]
+DUMMY_COLUMN_NAME = "_group"
 with open("schemas.json", "r") as fp:
     DB_SCHEMAS = json.load(fp)
 
@@ -58,6 +59,7 @@ def build_models(
                 f"create table "
                 f"{table_name}({column_1_str}, {column_2_str}) "
                 f"from '{csv_path}' "
+                f"group by {DUMMY_COLUMN_NAME} "
                 f"method {sampling_method} size {sample_size};"
             )
             try:
@@ -112,25 +114,42 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
     dataset_full_id = data_source + NAME_DELIMITER + dataset_id
     query_set = dataset_full_id + NAME_DELIMITER + "N=100"
     schema = DB_SCHEMAS[data_source][dataset_id]
-    csv_path = os.path.join(DATA_DIR, "uncompressed", dataset_full_id + ".csv")
+    csv_path_original = os.path.join(DATA_DIR, "uncompressed", dataset_full_id + ".csv")
+    csv_path_group = os.path.join("evaluation", "data", dataset_full_id + "__group.csv")
     queries_path = os.path.join(QUERIES_DIR, dataset_full_id, query_set + ".csv")
     models_dir = os.path.join(
-        "my_evaluation", "models", dataset_full_id, f"sample_size_{sample_size}"
+        "evaluation", "models", dataset_full_id, f"sample_size_{sample_size}"
     )
     results_path = os.path.join(
-        "my_evaluation",
+        "evaluation",
         "results",
         dataset_full_id,
         query_set,
         f"sample_size_{sample_size}",
     )
-    ground_truth_path = os.path.join("my_evaluation", "ground_truth", dataset_full_id)
+    ground_truth_path = os.path.join("evaluation", "ground_truth", dataset_full_id)
     results_filepath = os.path.join(results_path, "results.csv")
     info_filepath = os.path.join(results_path, "info.txt")
-    data, n_bytes_per_value = load_dataset(csv_path, dataset_full_id)
+    data, n_bytes_per_value = load_dataset(csv_path_original, dataset_full_id)
     df_queries = pd.read_csv(queries_path, dtype={"predicate_column": int})
     n_rows = schema["n_rows"]
     n_columns = len(schema["column_names"])
+
+    # Create new version of dataset (csv file) with a dummy group column so that DBEst++
+    # can use group by queries.
+    # This is done because DBEst++ does not work correctly on queries (and models) that
+    # do not have a group by clause. I don't understand why not. DBEst++ does insert a
+    # "dummy" column for models/queries without a group by clause, however the query
+    # results are always very poor for COUNT, SUM and VARIANCE queries and often poor
+    # for AVG queries. Manually adding a "group" column that is only contains a single
+    # value will hopefully work as a hack solution to get DBEst++ to perform reasonably
+    # well on queries without a group by clause.
+    if not os.path.isfile(csv_path_group):
+        logger.info("Greating CSV file with dummy group by column.")
+        df, _ = load_dataset(csv_path_original, dataset_full_id)
+        df[DUMMY_COLUMN_NAME] = "all"
+        os.makedirs(os.path.dirname(csv_path_group), exist_ok=True)
+        df.to_csv(csv_path_group)
 
     # Ensure not to overwrite output files
     ts = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -144,7 +163,7 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
     # e.g. "method uniform size 1000" does uniform sampling with 1000 samples
     t_modelling_start = perf_counter()
     logger.info("Creating data model...")
-    sql_executor = build_models(dataset_full_id, csv_path, models_dir, sample_size)
+    sql_executor = build_models(dataset_full_id, csv_path_group, models_dir, sample_size)
     t_modelling = perf_counter() - t_modelling_start
 
     # Compute ground truth
@@ -341,6 +360,7 @@ def main():
 if __name__ == "__main__":
     logging.basicConfig(level=LOGGING_LEVEL, format=LOG_FORMAT)
     logger = logging.getLogger("main")
-    logging.getLogger("gensim.models.word2vec").setLevel(logging.WARNING)
-    logging.getLogger("gensim.utils").setLevel(logging.WARNING)
+    logging.getLogger("gensim.models.base_any2vec").setLevel(logging.ERROR)
+    logging.getLogger("gensim.models.word2vec").setLevel(logging.ERROR)
+    logging.getLogger("gensim.utils").setLevel(logging.ERROR)
     main()
