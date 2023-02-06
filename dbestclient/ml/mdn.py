@@ -1761,7 +1761,7 @@ class KdeMdn:
         result = np.sqrt(result)
         # print("result", result)
         # print(len(result))
-        result = dict(zip(zs, result))
+        result = pd.DataFrame(zip(zs, result))
         return result
 
     def normalize(self, x: list, mean: float, width: float):
