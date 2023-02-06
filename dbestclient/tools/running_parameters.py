@@ -36,8 +36,8 @@ RUNTIME_CONF = {
     "limit": 30,
     "model_suffix": ".dill",
     "slaves": Slaves(),
-    "sampling_only":False,
-    "plot":False,
+    "sampling_only": False,
+    "plot" :False,
 }
 
 
@@ -108,6 +108,12 @@ class DbestConfig:
             value (str or bool): the value
         """
         self.config[key] = value
+
+    def get_parameter(self, key: str):
+        try:
+            return self.config[key]
+        except KeyError:
+            raise KeyError(f"{key} is not a valid parameter")
 
     def get_config(self):
         """Return the configuration for DBEstClient.

@@ -919,3 +919,11 @@ class SqlExecutor:
 
     def set_table_counts(self, dic):
         self.n_total_records = dic
+
+    def get_parameter(self, key: str):
+        if key in self.config.get_config():
+            return self.config.get_parameter(key)
+        elif key in self.runtime_config:
+            return self.runtime_config[key]
+        else:
+            raise KeyError(f"{key} is not a valid parameter")
