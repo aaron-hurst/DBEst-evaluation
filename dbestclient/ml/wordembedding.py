@@ -1,3 +1,4 @@
+import logging
 import multiprocessing
 
 import numpy as np
@@ -8,6 +9,8 @@ from gensim.models import Word2Vec
 # from numpy.core.defchararray import startswith
 
 # https://towardsdatascience.com/word-embedding-with-word2vec-and-fasttext-a209c1d3e12c
+
+logger = logging.getLogger(__name__)
 
 
 class SkipGram:
@@ -31,7 +34,6 @@ class SkipGram:
         min_count=0,
         negative=30,
         iters=30,
-
         workers=-1,
         NG=1,
         b_reg=True,
@@ -41,21 +43,19 @@ class SkipGram:
         #     if equal_data is not None
         #     else gb_data
         # )
-        categoricals = (
-            np.concatenate(
+        if range_data is None:
+            categoricals = categorical_data
+        else:
+            categoricals = np.concatenate(
                 (categorical_data, range_data[:, np.newaxis].astype(str)), axis=1
             )
-            if range_data is not None
-            else categorical_data
-        )
         if b_reg:
-            categoricals = (
-                np.concatenate(
+            if label_data is None:
+                categoricals = categorical_data
+            else:
+                categoricals = np.concatenate(
                     (categoricals, label_data[:, np.newaxis].astype(str)), axis=1
                 )
-                if label_data is not None
-                else categorical_data
-            )
 
         if usecols is not None:
             self.usecols = usecols
@@ -104,7 +104,7 @@ class SkipGram:
         headers = np.repeat(header, len(categoricals), axis=0)
         # print("*" * 70)
         # print(headers, "-" * 20, ">" * 20)
-        NG=len(self.header_categorical)
+        NG = len(self.header_categorical)
         self.dim = dim * len(self.header_categorical)
         sentences = np.core.defchararray.add(headers, categoricals).tolist()
         # print(sentences)
@@ -133,7 +133,7 @@ class SkipGram:
                 if word.startswith(head):
                     self.embeddings[word] = model.wv[word]
         # print(self.embeddings.keys())
-        print("finish training embedding.")
+        logger.debug("finish training embedding.")
         return self
 
     def predicts(self, keys):
