@@ -9,6 +9,7 @@ import itertools as it
 import math
 import random
 import sys
+import logging
 from concurrent import futures
 from copy import deepcopy
 from os import remove
@@ -41,6 +42,8 @@ USE_SKIP_GRAM = True
 """A module for a mixture density network layer
 For more info on MDNs, see _Mixture Desity Networks_ by Bishop, 1994.
 """
+
+logger = logging.getLogger(__name__)
 
 
 class MDN(nn.Module):
@@ -392,7 +395,7 @@ class RegMdnGroupBy:
                 # print(z_group)
                 # print(type(z_group))
                 # exit()
-                print("embedding inference...")
+                logger.debug("embedding inference...")
                 zs_encoded = self.enc.predicts(z_group)
                 # print("zs_encoded")
                 # print(zs_encoded)
@@ -400,7 +403,7 @@ class RegMdnGroupBy:
                 # exit()
                 # raise TypeError("embedding is not supported yet.")
 
-            print("start normalizing data...")
+            logger.debug("start normalizing data...")
             if self.b_normalize_data:
                 if x_points is not None:
                     self.meanx = (np.max(x_points) + np.min(x_points)) / 2
@@ -428,7 +431,7 @@ class RegMdnGroupBy:
                 self.y_points = None
                 self.z_points = None
             
-            print("transform data from MDN training...")
+            logger.debug("transform data from MDN training...")
             if encoder in ["onehot", "binary", "embedding"]:
                 if x_points is not None:
                     xs_encoded = x_points[:, np.newaxis]
@@ -460,7 +463,7 @@ class RegMdnGroupBy:
             # print(tensor_ys)
             # exit()
             # print(y_points[:5])
-            print("finish transforming data from MDN training...")
+            logger.debug("finish transforming data from MDN training...")
 
             # move variables to cuda
             tensor_xzs = tensor_xzs.to(device)
@@ -535,7 +538,7 @@ class RegMdnGroupBy:
             for epoch in range(n_epoch):
                 if runtime_config["v"]:
                     if epoch % 1 == 0:
-                        print("< Epoch {}".format(epoch))
+                        logger.debug("< Epoch {}".format(epoch))
                 # train the model
                 for minibatch, labels in my_dataloader:
                     minibatch.to(device)
@@ -547,7 +550,7 @@ class RegMdnGroupBy:
                     optimizer.step()
                 my_lr_scheduler.step()
             self.model.eval()
-            print("Finish regression training.")
+            logger.debug("Finish regression training.")
             return self
         else:
             return self.fit_grid_search(z_group, x_points, y_points, runtime_config)
@@ -1021,7 +1024,7 @@ class RegMdn:
         optimizer = optim.Adam(self.model.parameters())
         for epoch in range(num_epoch):
             if epoch % 100 == 0:
-                print("< Epoch {}".format(epoch))
+                logger.debug("< Epoch {}".format(epoch))
             # train the model
             for minibatch, labels in my_dataloader:
                 minibatch.to(device)
@@ -1167,7 +1170,7 @@ class RegMdn:
         optimizer = optim.Adam(self.model.parameters())
         for epoch in range(num_epoch):
             if epoch % 5 == 0:
-                print("< Epoch {}".format(epoch))
+                logger.debug("< Epoch {}".format(epoch))
             # train the model
             for minibatch, labels in my_dataloader:
                 self.model.zero_grad()
@@ -1499,7 +1502,7 @@ class KdeMdn:
             for epoch in range(num_epoch):
                 if runtime_config["v"]:
                     if epoch % 1 == 0:
-                        print("< Epoch {}".format(epoch))
+                        logger.debug("< Epoch {}".format(epoch))
                 # train the model
                 for minibatch, labels in my_dataloader:
                     self.model.zero_grad()
@@ -1734,30 +1737,30 @@ class KdeMdn:
         mus = mus.detach().numpy().reshape(len(zs), -1)  # [0]
         pis = pis.detach().numpy()  # [0]  # .reshape(-1,2)
         sigmas = sigmas.detach().numpy().reshape(len(sigmas), -1)  # [0]
-        print("pis", pis)
-        print("sigmas", sigmas)
-        print("mus", mus)
-        print("mean, width", self.meanx, self.widthx)
+        # print("pis", pis)
+        # print("sigmas", sigmas)
+        # print("mus", mus)
+        # print("mean, width", self.meanx, self.widthx)
         sigmas = sigmas * 0.5 * self.widthx  # + self.meanx
         mus = mus * 0.5 * self.widthx + self.meanx
-        print("mus", mus)
-        print("mus[0]", mus[0])
-        print("pis[0]", pis[0])
-        print("sigma[0]", sigmas[0])
+        # print("mus", mus)
+        # print("mus[0]", mus[0])
+        # print("pis[0]", pis[0])
+        # print("sigma[0]", sigmas[0])
 
         mu_avg_2 = np.power(np.sum(np.multiply(mus, pis, dtype="float64"), axis=1), 2)
-        print("mu_avg_2", mu_avg_2[0])
+        # print("mu_avg_2", mu_avg_2[0])
         mu_2 = np.power(mus, 2, dtype="float64")
         sigmas_2 = np.power(sigmas, 2, dtype="float64")
         adds = np.add(mu_2, sigmas_2, dtype="float64")
-        print("adds", adds[0])
+        # print("adds", adds[0])
         sums = np.multiply(adds, pis, dtype="float64").sum(axis=1, dtype="float64")
-        print("sums", sums[0])
-        print("types", type(sums[0]))
+        # print("sums", sums[0])
+        # print("types", type(sums[0]))
         result = np.subtract(sums, mu_avg_2, dtype="float64").tolist()
         result = np.sqrt(result)
-        print("result", result)
-        print(len(result))
+        # print("result", result)
+        # print(len(result))
         result = dict(zip(zs, result))
         return result
 

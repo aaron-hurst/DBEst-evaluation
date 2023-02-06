@@ -5,6 +5,7 @@
 # Q.Ma.2@warwick.ac.uk
 
 import math
+import logging
 from collections import Counter
 from datetime import datetime
 from multiprocessing import Pool as PoolCPU
@@ -39,6 +40,8 @@ from torch.multiprocessing import Pool as PoolGPU
 #     print("Fail to set start method as spawn for pytorch multiprocessing, " +
 #           "use default in advance. (see queryenginemdn "
 #           "for more info.)")
+
+logger = logging.getLogger(__name__)
 
 
 class GenericQueryEngine:
@@ -95,7 +98,7 @@ class MdnQueryEngineNoRange(GenericQueryEngine):
         else:
             config = self.config.copy()
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
                 gbs, None, ys, runtime_config,usecols=usecols)
         return self
@@ -198,12 +201,12 @@ class MdnQueryEngineRangeNoCategorical(GenericQueryEngine):
         else:
             config = self.config.copy()
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
                 gbs_data, xs_data, ys_data, runtime_config,usecols=usecols)
 
             if runtime_config['v']:
-                print("training density...")
+                logger.debug("training density...")
             self.kde = KdeMdn(config, b_store_training_data=False).fit(
                 gbs_data, xs_data, runtime_config)
         return self
@@ -391,7 +394,7 @@ class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
 
     def fit(self, mdl_name: str, origin_table_name: str, gbs, xs, ys, total_points: dict, usecols: dict, runtime_config: dict):
         if runtime_config['v']:
-            print("training "+mdl_name+"...")
+            logger.debug("training "+mdl_name+"...")
         self.mdl_name = mdl_name
         self.n_total_point = total_points
         self.usecols = usecols
@@ -400,7 +403,7 @@ class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
         else:
             config = self.config.copy()
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("training regression...")
 
             # print("xs", xs)
             # print("ys", ys)
@@ -650,7 +653,7 @@ class MdnQueryEngine(GenericQueryEngine):
         # result2file = self.config.get_config()["result2file"]
 
         if func.lower() not in ("count", "sum", "avg", "var"):
-            raise ValueError("function not supported: "+func)
+            raise NotImplementedError("function not supported: "+func)
         if groups is None:  # provide predictions for all groups.
             groups = self.groupby_values
 
@@ -826,17 +829,16 @@ class MdnQueryEngine(GenericQueryEngine):
                         #     host, slaves.get()[host], "select", query)
 
         elif func.lower() == "var":
-            print("predict var")
-
+            logger.debug("predict var")
             results = prepare_var(
-                self.kde, groups=groups, runtime_config=runtime_config)  # {"group":999.99}
+                self.kde, groups=groups, runtime_config=runtime_config
+            )
         else:
             raise TypeError("unexpected aggregated.")
         runtime_config["b_print_to_screen"] = b_print_to_screen
         if runtime_config["b_print_to_screen"]:
             for key in results:
-                print(",".join(key.split("-")) +
-                      "," + str(results[key]))
+                logger.debug(",".join(str(key).split("-")) + "," + str(results[key]))
 
         if result2file is not None:
             with open(result2file, 'w') as f:
@@ -1306,7 +1308,7 @@ class MdnQueryEngineXCategoricalOneModel(GenericQueryEngine):
                 gbs, xs, runtime_config)
 
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
                 gbs, xs, ys, runtime_config,usecols=usecols)
             # kdeModelWrapper = KdeModelTrainer(

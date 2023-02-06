@@ -778,7 +778,7 @@ class SqlExecutor:
                         filter_dbest=filter_dbest,
                     )
 
-                elif func == "var":
+                elif func.lower() == "var":
                     model = self.model_catalog.model_catalog[
                         mdl + self.runtime_config["model_suffix"]
                     ]
@@ -812,12 +812,12 @@ class SqlExecutor:
                     )
 
                 if self.runtime_config["b_print_to_screen"]:
-                    # logger.info(predictions.to_csv(sep=',', index=False))  # sep='\t'
-                    logger.info(predictions.to_string(index=False))  # max_rows=5
+                    # logger.debug(predictions.to_csv(sep=',', index=False))  # sep='\t'
+                    logger.debug(predictions.to_string(index=False))  # max_rows=5
 
                 if self.runtime_config["result2file"]:
                     predictions.to_csv(self.runtime_config["result2file"],header=False, sep=',', index=False, quoting=csv.QUOTE_NONE, quotechar="",  escapechar=" ")
-                    # logger.info(predictions.to_csv(sep=',', index=False))  # sep='\t'
+                    # logger.debug(predictions.to_csv(sep=',', index=False))  # sep='\t'
                     # with open(self.runtime_config["result2file"],'w') as f:
                     #     out = 
                     #     f.write(predictions.to_string(index=False))  # max_rows=5
@@ -825,9 +825,9 @@ class SqlExecutor:
                 if self.runtime_config["b_show_latency"]:
                     end_time = datetime.now()
                     time_cost = (end_time - start_time).total_seconds()
-                    logger.info("Time cost: %.4f s." % time_cost)
+                    logger.debug("Time cost: %.4f s." % time_cost)
                 logger.debug("------------------------")
-                return predictions
+                return predictions, time_cost
 
             elif sql_type == "set":  # process SET query
                 if self.last_config:

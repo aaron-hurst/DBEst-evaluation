@@ -19,6 +19,7 @@
 
 NumberOFAtrributes = 0
 
+import logging
 import math
 import multiprocessing
 import os
@@ -27,6 +28,8 @@ import pandas as pd
 import numpy as np
 
 from gensim.models import Word2Vec
+
+logger = logging.getLogger(__name__)
 
 
 class WordEmbedding:
@@ -86,7 +89,7 @@ class WordEmbedding:
         del vocab  ############################
         self.embedding = Group
 
-        print("finish training embedding")
+        logger.debug("finish training embedding")
         return Group
 
     def predict(self, key):
