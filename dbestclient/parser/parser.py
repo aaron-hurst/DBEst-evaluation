@@ -244,9 +244,10 @@ class DBEstParser:
         return False
 
     def get_ddl_model_name(self):
-        for item in self.parsed.tokens:
-            if item.ttype is None and "(" in item.value.lower():
-                return item.tokens[0].value
+        # for item in self.parsed.tokens:
+        #     if item.ttype is None and "(" in item.value.lower():
+        #         return item.tokens[0].value
+        return self.parsed.tokens[4].value.split("(")[0]
 
     def get_y(self):
         item = self.parsed.tokens[4].value
@@ -310,7 +311,8 @@ class DBEstParser:
         for item in self.parsed.tokens:
             if item.ttype is Keyword and item.value.lower() == "from":
                 idx = self.parsed.token_index(item, 0) + 2
-                return self.parsed.tokens[idx].value
+                from_value = self.parsed.tokens[idx].value.replace("'", "")
+                return from_value
 
     def get_sampling_ratio(self):
         for item in self.parsed.tokens:

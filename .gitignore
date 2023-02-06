@@ -14,7 +14,7 @@ experiments/comparisons_for_paper/
 experiments/huawei/
 experiments/results/stratified/
 MNIST_data/
-my_evaluation/
+evaluation/
 notebook/
 resources/
 

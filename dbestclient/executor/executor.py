@@ -119,25 +119,27 @@ class SqlExecutor:
         else:
             sql_type = self.parser.get_query_type()
             if sql_type == "create":  # process create query
-                # initialize the configure for each model creation.
+                # Initialize the configure for each model creation.
                 if self.last_config:
                     self.config = self.last_config
                 else:
                     self.config = DbestConfig(self.warehouse_path)
-                # DDL, create the model as requested
+                
+                # Get model name and table name from query
                 mdl = self.parser.get_ddl_model_name()
-                tbl = self.parser.get_from_name()
-
-                # remove unnecessary charactor '
-                tbl = tbl.replace("'", "")
-                if os.path.isfile(tbl):  # the absolute path is provided
-                    original_data_file = tbl
-                else:  # the file is in the warehouse direcotry
-                    original_data_file = (
-                        self.config.get_config()["warehousedir"] + "/" + tbl
+                original_data_file = tbl = self.parser.get_from_name()
+                if os.path.isfile(original_data_file):  # if full path, return only filename
+                    tbl = os.path.basename(original_data_file)
+                    original_data_filepath = original_data_file
+                else:
+                    tbl = original_data_file
+                    original_data_filepath = os.path.join(
+                        self.config.get_config()['warehousedir'], original_data_file
                     )
-                yheader = self.parser.get_y()
+                tbl = tbl.replace("'", "").replace(".csv", "")
 
+                # Get headers
+                yheader = self.parser.get_y()
                 xheader_continous, xheader_categorical = self.parser.get_x()
 
                 ratio = self.parser.get_sampling_ratio()
@@ -208,10 +210,7 @@ class SqlExecutor:
                         ratio,
                         method,
                         split_char=self.config.get_config()["csv_split_char"],
-                        file2save=self.config.get_config()["warehousedir"]
-                        + "/"
-                        + mdl
-                        + ".csv",
+                        file2save=self.config.get_config()["warehousedir"] + "/" + mdl + "_sample.csv",
                         num_total_records=self.n_total_records,
                     )
                 else:

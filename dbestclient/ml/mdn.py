@@ -363,7 +363,12 @@ class RegMdnGroupBy:
 
                 if USE_SKIP_GRAM:
                     self.enc = SkipGram().fit(
-                        z_group, x_points, y_points, usecols=usecols,dim=self.config.config["n_embedding_dim"],NG=len(z_group[0]),
+                        z_group,
+                        x_points,
+                        y_points,
+                        usecols=usecols,
+                        dim=self.config.config["n_embedding_dim"],
+                        NG=len(z_group[0]),
                     )
                 else:
                     sentences = columns2sentences(z_group, x_points, y_points)

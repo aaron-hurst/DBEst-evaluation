@@ -11,6 +11,7 @@ http://erikerlandson.github.io/blog/2015/11/20/very-fast-reservoir-sampling/
 
 from __future__ import division, print_function, with_statement
 
+import logging
 from math import log
 from random import random
 from sys import stderr, stdin
@@ -25,6 +26,8 @@ from dbestclient.tools.variables import UseCols
 #     range = xrange
 # except NameError:
 #     pass
+
+logger = logging.getLogger(__name__)
 
 
 class ReservoirSampling:
@@ -56,7 +59,7 @@ class ReservoirSampling:
         )
         f.close()
 
-        print("Reading data file...")
+        logger.debug("Reading data file...")
         with open(file, "r") as data:
             if verbose:
 
@@ -313,7 +316,7 @@ class ReservoirSampling:
         return ft
 
     def get_groupby_frequency_and_data(self):
-        print("get frequency info from data....")
+        logger.debug("get frequency info from data....")
         # print("self.sampledf", self.sampledf)
         total_frequency = {}
         data = {}
