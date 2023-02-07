@@ -76,8 +76,7 @@ def prepare_reg_density_data(density, x_lb: float, x_ub: float, groups: list, re
 
     reg_x_points = list(x_points)*len(groups)
     try:  # group key is [g1-g2]
-        reg_g_points = [g.split(",")
-                        for g in groups for _ in range(n_division)]
+        reg_g_points = [g.split(",") for g in groups for _ in range(n_division)]
         density_g_points = [i.split(",") for i in groups]
     except AttributeError:  # group key is [g1,g2]
         reg_g_points = [list(g) for g in groups for _ in range(n_division)]
@@ -89,8 +88,7 @@ def prepare_reg_density_data(density, x_lb: float, x_ub: float, groups: list, re
     # print(density_g_points)
     # print(density_x_points)
 
-    pre_density = density.predict(
-        density_g_points, density_x_points, runtime_config, b_plot=False)
+    pre_density = density.predict(density_g_points, density_x_points, runtime_config, b_plot=False)
 
     pre_reg = None if reg is None else reg.predict(
         reg_g_points, reg_x_points, runtime_config)

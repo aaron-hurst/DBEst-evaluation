@@ -1705,7 +1705,8 @@ class KdeMdn:
             # print("result", result, type(result))
             # raise Exception
             # scale up the probability, due to normalization of the x axis.
-            result = result / self.widthx * 2
+            if self.widthx != 0:
+                result = result / self.widthx * 2
             return result
         else:
             return gm(
