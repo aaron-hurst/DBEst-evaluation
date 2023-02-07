@@ -82,13 +82,13 @@
     "aquaponics_all": {
       "column_names": [
         "entry_id",
-        "temperature (C)",
-        "turbidity (NTU)",
-        "dissolved oxygen (g/ml)",
+        "temperature_c",
+        "turbidity_ntu",
+        "dissolved_oxygen_g_per_ml",
         "ph",
-        "nitrate (g/ml)",
-        "fish length (cm)",
-        "fish weight (g)",
+        "nitrate_g_per_ml",
+        "fish_length_cm",
+        "fish_weight_g",
         "pond_id"
       ],
       "n_rows": 1114796

@@ -97,7 +97,7 @@ def get_relative_error(exact, estimate):
     if np.isnan(estimate):
         return 100
     elif (exact != 0):
-        return abs(estimate - exact) / exact * 100
+        return abs((estimate - exact) / exact) * 100
     elif estimate == 0:
         return 0
     else:
@@ -344,20 +344,21 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
 
 def main():
     # Run all experiments (all datasets and multiple sample sizes)
-    # for data_source in DB_SCHEMAS:
-    #     for dataset_id in DB_SCHEMAS[data_source]:
-    #         for sample_size in [1000]:  # try 10000 later for at least some datasets
-    #             run_experiment(data_source, dataset_id, sample_size)
+    for data_source in DB_SCHEMAS:
+        for dataset_id in DB_SCHEMAS[data_source]:
+            for sample_size in [1000, 10000]:  # TODO 100000
+                run_experiment(data_source, dataset_id, sample_size)
 
     # Run a single experiment
     # run_experiment("kaggle", "aquaponics_all", 1000)
     # run_experiment("kaggle", "smart_building_system_all", 1000)
     # run_experiment("kaggle", "light_detection", sample_size=1000)
-    run_experiment("kaggle", "light_detection", sample_size=1000)
+    # run_experiment("kaggle", "light_detection", sample_size=1000)
     # run_experiment("uci", "household_power_consumption", 1000)
     # run_experiment("uci", "gas_sensor_home_activity", 1000)
 
     # run_experiment("kaggle", "light_detection", 10000)
+    # run_experiment("uci", "household_power_consumption", 10000)
 
 
 if __name__ == "__main__":
