@@ -8,7 +8,14 @@ import os
 import pandas as pd
 from dbestclient.executor.executor import SqlExecutor
 
-from config import LOG_FORMAT, NAME_DELIMITER, DATA_DIR, QUERIES_DIR, GROUND_TRUTH_DIR
+from config import (
+    DATA_DIR,
+    GROUND_TRUTH_DIR,
+    LOG_FORMAT,
+    NAME_DELIMITER,
+    QUERIES_DIR,
+    RESULTS_DIR,
+)
 
 LOGGING_LEVEL = logging.INFO
 SAVE_SAMPLE = True
@@ -96,7 +103,7 @@ def aggregate(data, agg):
 def get_relative_error(exact, estimate):
     if np.isnan(estimate):
         return 100
-    elif (exact != 0):
+    elif exact != 0:
         return abs((estimate - exact) / exact) * 100
     elif estimate == 0:
         return 0
@@ -113,17 +120,20 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
     )
 
     # Setup
+    parent_results_path = os.path.join(RESULTS_DIR, "aqp", "dbestpp")
     dataset_full_id = data_source + NAME_DELIMITER + dataset_id
     query_set = dataset_full_id + NAME_DELIMITER + "N=100"
     schema = DB_SCHEMAS[data_source][dataset_id]
     csv_path_original = os.path.join(DATA_DIR, "uncompressed", dataset_full_id + ".csv")
-    csv_path_group = os.path.join("evaluation", "data", dataset_full_id + "__group.csv")
+    csv_path_group = os.path.join(
+        parent_results_path, "data", dataset_full_id + "__group.csv"
+    )
     queries_path = os.path.join(QUERIES_DIR, dataset_full_id, query_set + ".csv")
     models_dir = os.path.join(
-        "evaluation", "models", dataset_full_id, f"sample_size_{sample_size}"
+        parent_results_path, "models", dataset_full_id, f"sample_size_{sample_size}"
     )
     results_path = os.path.join(
-        "evaluation",
+        parent_results_path,
         "results",
         dataset_full_id,
         query_set,
@@ -165,7 +175,9 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
     # e.g. "method uniform size 1000" does uniform sampling with 1000 samples
     t_modelling_start = perf_counter()
     logger.info("Creating data model...")
-    sql_executor = build_models(dataset_full_id, csv_path_group, models_dir, sample_size)
+    sql_executor = build_models(
+        dataset_full_id, csv_path_group, models_dir, sample_size
+    )
     t_modelling = perf_counter() - t_modelling_start
 
     # Compute ground truth
@@ -260,7 +272,9 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
 
     # Compute error statistics
     df["error"] = df["predicted_value"] - df["exact_value"]
-    df["relative_error"] = df.apply(lambda x: get_relative_error(x.exact_value, x.predicted_value), axis=1)
+    df["relative_error"] = df.apply(
+        lambda x: get_relative_error(x.exact_value, x.predicted_value), axis=1
+    )
 
     # Export results
     logger.info("Exporting results.")
@@ -346,7 +360,7 @@ def main():
     # Run all experiments (all datasets and multiple sample sizes)
     for data_source in DB_SCHEMAS:
         for dataset_id in DB_SCHEMAS[data_source]:
-            for sample_size in [20000]:
+            for sample_size in [1000]:
                 run_experiment(data_source, dataset_id, sample_size)
 
     # Run a single experiment
