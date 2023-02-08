@@ -8,7 +8,7 @@ import os
 import pandas as pd
 from dbestclient.executor.executor import SqlExecutor
 
-from config import LOG_FORMAT, NAME_DELIMITER, DATA_DIR, QUERIES_DIR
+from config import LOG_FORMAT, NAME_DELIMITER, DATA_DIR, QUERIES_DIR, GROUND_TRUTH_DIR
 
 LOGGING_LEVEL = logging.INFO
 SAVE_SAMPLE = True
@@ -129,7 +129,7 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
         query_set,
         f"sample_size_{sample_size}",
     )
-    ground_truth_path = os.path.join("evaluation", "ground_truth", dataset_full_id)
+    ground_truth_path = os.path.join(GROUND_TRUTH_DIR, dataset_full_id)
     results_filepath = os.path.join(results_path, "results.csv")
     info_filepath = os.path.join(results_path, "info.txt")
     data, n_bytes_per_value = load_dataset(csv_path_original, dataset_full_id)
@@ -151,7 +151,7 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
         df, _ = load_dataset(csv_path_original, dataset_full_id)
         df[DUMMY_COLUMN_NAME] = "all"
         os.makedirs(os.path.dirname(csv_path_group), exist_ok=True)
-        df.to_csv(csv_path_group)
+        df.to_csv(csv_path_group, index=False)
 
     # Ensure not to overwrite output files
     ts = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -169,7 +169,7 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
     t_modelling = perf_counter() - t_modelling_start
 
     # Compute ground truth
-    gt_filename = query_set + "gt.csv"
+    gt_filename = query_set + "_gt.csv"
     results = []
     if not os.path.exists(ground_truth_path):
         os.makedirs(ground_truth_path)
@@ -346,7 +346,7 @@ def main():
     # Run all experiments (all datasets and multiple sample sizes)
     for data_source in DB_SCHEMAS:
         for dataset_id in DB_SCHEMAS[data_source]:
-            for sample_size in [1000, 10000]:  # TODO 100000
+            for sample_size in [20000]:
                 run_experiment(data_source, dataset_id, sample_size)
 
     # Run a single experiment
