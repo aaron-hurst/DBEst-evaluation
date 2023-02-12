@@ -291,7 +291,7 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
         .round(2),
     )
     logger.info(
-        "Relative error by accregate:\n%s",
+        "Relative error by aggregatation:\n%s",
         df.groupby("aggregation")[["relative_error"]]
         .describe(percentiles=[0.5, 0.75, 0.95])
         .round(3),
@@ -320,7 +320,7 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
     integration_n_divisions = sql_executor.get_parameter("n_division")
     integration_limit = sql_executor.get_parameter("limit")
     with open(info_filepath, "w", newline="") as f:
-        f.write(f"------------- Parameters -------------\n")
+        f.write("------------- Parameters -------------\n")
         f.write(f"DATA_SOURCE              {data_source}\n")
         f.write(f"DATASET_ID               {dataset_id}\n")
         f.write(f"QUERIES_SET              {query_set}\n")
@@ -339,7 +339,7 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
         f.write(f"INTEGRATION_N_DIVISIONS  {integration_n_divisions}\n")
         f.write(f"INTEGRATION_LIMIT        {integration_limit}\n")
 
-        f.write(f"\n------------- Runtime -------------\n")
+        f.write("\n------------- Runtime -------------\n")
         f.write(f"Generate models          {t_modelling:.3f} s\n")
         f.write(f"Run queries              {t_queries:.3f} s\n")
         f.write(f"Queries executed         {n_queries}\n")
@@ -349,7 +349,7 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
             mean_latency = 0
         f.write(f"Mean latency             {mean_latency:.6f} s\n")
 
-        f.write(f"\n------------- Storage -------------\n")
+        f.write("\n------------- Storage -------------\n")
         f.write(f"Original data            {s_original:,d} bytes\n")
         f.write(f"Models                   {s_models:,d} bytes\n")
         f.write(f"Models (%)               {s_models / s_original * 100:.2f} %\n")
@@ -358,21 +358,16 @@ def run_experiment(data_source, dataset_id, sample_size, sampling_method="unifor
 
 def main():
     # Run all experiments (all datasets and multiple sample sizes)
-    for data_source in DB_SCHEMAS:
-        for dataset_id in DB_SCHEMAS[data_source]:
-            for sample_size in [1000]:
-                run_experiment(data_source, dataset_id, sample_size)
+    # for data_source in DB_SCHEMAS:
+    #     for dataset_id in DB_SCHEMAS[data_source]:
+    #         for sample_size in [1000, 10000, 20000, 50000]:
+    #             run_experiment(data_source, dataset_id, sample_size)
 
     # Run a single experiment
-    # run_experiment("kaggle", "aquaponics_all", 1000)
-    # run_experiment("kaggle", "smart_building_system_all", 1000)
-    # run_experiment("kaggle", "light_detection", sample_size=1000)
-    # run_experiment("kaggle", "light_detection", sample_size=1000)
-    # run_experiment("uci", "household_power_consumption", 1000)
-    # run_experiment("uci", "gas_sensor_home_activity", 1000)
-
-    # run_experiment("kaggle", "light_detection", 10000)
-    # run_experiment("uci", "household_power_consumption", 10000)
+    # run_experiment("kaggle", "light_detection", sample_size=10000)
+    # run_experiment("ampds", "furnace_and_thermostat", sample_size=1000)
+    # run_experiment("uci", "gas_sensor_home_activity", sample_size=50000)
+    pass
 
 
 if __name__ == "__main__":
