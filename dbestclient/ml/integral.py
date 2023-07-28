@@ -74,11 +74,17 @@ def prepare_reg_density_data(density, x_lb: float, x_ub: float, groups: list, re
     # on the density model. Also convert bounds that are stored as strings to floats.
     # Code added by AH on July 28, 2023
     if x_lb is None:
-        x_lb = density.meanx - density.widthx
+        try:
+            x_lb = density.meanx - density.widthx
+        except AttributeError:
+            raise NotImplementedError("Unable to determine density.")
     elif isinstance(x_lb, str):
         x_lb = float(x_lb.strip(";"))
     if x_ub is None:
-        x_ub = density.meanx + density.widthx
+        try:
+            x_ub = density.meanx + density.widthx
+        except AttributeError:
+            raise NotImplementedError("Unable to determine density.")
     elif isinstance(x_ub, str):
         x_ub = float(x_ub.strip(";"))
     ####################################################################################

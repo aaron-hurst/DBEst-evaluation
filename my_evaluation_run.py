@@ -12,10 +12,12 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, QUERIES_DIR
 
 
-DATASET_ID = "uci-household_power_consumption"
-QUERY_SET = 15
+# DATASET_ID = "uci-household_power_consumption"
+# QUERY_SET = 15
+DATASET_ID = "usdot-flights"
+QUERY_SET = 4
 
-SAMPLE_SIZE = 10000
+SAMPLE_SIZE = 1000
 
 
 def get_relative_error_pct(true, predicted):
@@ -78,7 +80,7 @@ def main():
     t_queries_start = perf_counter()
     for i, query in enumerate(queries):
         if (i % 100 == 0) and (i > 0):
-            logger.info(f"Processed {i+1}/{n_queries_total} queries")
+            logger.info(f"Processed {i}/{n_queries_total} queries")
 
         # Transform query into a format suitable for DBEst++
         # aggregation column
@@ -94,7 +96,7 @@ def main():
         ]
         total_columns = len(set([aggregation_column, *predicate_columns]))
         if total_columns > 2:
-            logger.info(f"Unsupported query: more than two columns ({total_columns}).")
+            logger.info(f"Unsupported query: more than two columns: {total_columns}.")
             continue
         table = query_split[3]
         model = f"{table}_{aggregation_column}_{predicate_columns[0]}_{SAMPLE_SIZE}"
@@ -146,7 +148,7 @@ def main():
     # Get total size of models
     s_models = 0
     for f in os.listdir(models_dir):
-        if f.startswith(DATASET_ID) and f.endswith(".dill"):
+        if f.startswith(DATASET_ID.replace("-", "_")) and f.endswith(".dill"):
             s_models += os.stat(os.path.join(models_dir, f)).st_size
 
     # Export parameters and statistics
@@ -192,7 +194,7 @@ def main():
         f.write(f"Mean latency              {mean_latency:.6f} s\n")
 
         f.write("\n------------- Storage -------------\n")
-        f.write(f"Models                    {s_models:,d} bytes\n")
+        f.write(f"Models                    {s_models} bytes\n")
 
     logger.info("Done.")
     return

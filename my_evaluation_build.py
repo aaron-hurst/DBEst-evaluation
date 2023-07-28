@@ -12,12 +12,13 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, DATA_DIR
 
 
-DATASET_ID = "uci-household_power_consumption"
+# DATASET_ID = "uci-household_power_consumption"
+DATASET_ID = "usdot-flights"
 
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
 
-SAMPLE_SIZE = 10000
+SAMPLE_SIZE = 1000
 SAVE_SAMPLE = True
 SAMPLING_METHOD = "uniform"
 
@@ -97,7 +98,7 @@ def main():
     # Get total size of models
     s_models = 0
     for f in os.listdir(models_dir):
-        if f.startswith(DATASET_ID) and f.endswith(".dill"):
+        if f.startswith(DATASET_ID.replace("-", "_")) and f.endswith(".dill"):
             s_models += os.stat(os.path.join(models_dir, f)).st_size
 
     # Export parameters and statistics

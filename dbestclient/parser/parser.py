@@ -139,20 +139,21 @@ class DBEstParser:
         equal_values = []
         conditions = {}
         for item in self.parsed.tokens:
-            clause_lower = item.value.lower().replace("( ", "(").replace(" )", ")")
-            # clause = item.value.replace("( ", "(").replace(" )", ")")
-            if "where" in clause_lower:
+            clause = item.value.replace("( ", "(").replace(" )", ")")
+            if ("where" in clause) or ("WHERE" in clause):
 
                 # for token in item:
                 #     print(token.is_group, token.is_keyword,
                 #           token.is_whitespace, token.normalized)
                 splits = (
-                    clause_lower.replace("=", " = ")
+                    clause.replace("=", " = ")
                     .replace("AND", "and")
                     .replace("where", "")
+                    .replace("WHERE", "")
                     .split("and")
                 )
-                # splits_lower = clause_lower.replace("=", " = ").split("and")
+                if ("or" in clause) or ("OR" in clause):
+                    raise NotImplementedError("OR statements not supported.")
 
                 # print("splits", splits)
                 for condition in splits:

@@ -784,7 +784,10 @@ class SqlExecutor:
                     model = self.model_catalog.model_catalog[
                         mdl + self.runtime_config["model_suffix"]
                     ]
-                    x_header_density = model.density_column
+                    try:
+                        x_header_density = model.density_column
+                    except AttributeError:
+                        raise NotImplementedError("Unable to determine density.")
                     predictions = model.predicts(
                         "var", runtime_config=self.runtime_config
                     )

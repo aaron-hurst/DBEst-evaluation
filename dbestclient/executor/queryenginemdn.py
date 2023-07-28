@@ -115,7 +115,7 @@ class MdnQueryEngineNoRange(GenericQueryEngine):
             n_jobs = runtime_config["n_jobs"]
 
         if func.lower() not in ("count", "sum", "avg", "var"):
-            raise ValueError("function not supported: "+func)
+            raise NotImplementedError("function not supported: "+func)
         if groups is None:  # provide predictions for all groups.
             groups = self.groupby_values
 
@@ -124,7 +124,7 @@ class MdnQueryEngineNoRange(GenericQueryEngine):
             return
 
         if func.lower() not in ("count", "sum", "avg", "var"):
-            raise ValueError("function not supported: "+func)
+            raise NotImplementedError("function not supported: "+func)
         if groups is None:  # provide predictions for all groups.
             groups = self.groupby_values
 
@@ -223,7 +223,7 @@ class MdnQueryEngineRangeNoCategorical(GenericQueryEngine):
             n_jobs = runtime_config["n_jobs"]
 
         # if func.lower() not in ("count", "sum", "avg", "var"):
-        #     raise ValueError("function not supported: "+func)
+        #     raise NotImplementedError("function not supported: "+func)
         # if not groups: #is None:  # provide predictions for all groups.
         #     groups = self.groupby_values
 
@@ -232,7 +232,7 @@ class MdnQueryEngineRangeNoCategorical(GenericQueryEngine):
         #     return
 
         if func.lower() not in ("count", "sum", "avg", "var"):
-            raise ValueError("function not supported: "+func)
+            raise NotImplementedError("function not supported: "+func)
         if not groups: #is None:  # provide predictions for all groups.
             groups = self.groupby_values
 
@@ -424,16 +424,17 @@ class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
             n_jobs = runtime_config["n_jobs"]
 
         if func.lower() not in ("count", "sum", "avg", "var"):
-            raise ValueError("function not supported: "+func)
+            raise NotImplementedError("function not supported: "+func)
 
         if len(x_categorical_conditions[1]) > 1:
             key = ",".join(x_categorical_conditions[1]).replace("'", "")
         else:
-            key = x_categorical_conditions[1][0].replace("'", "")
+            key = x_categorical_conditions[1][0].replace("'", "").replace(";", "")
 
-        # print("self.n_total_point", self.n_total_point)
-
-        groups_no_categorical = list(self.n_total_point[key].keys())
+        try:
+            groups_no_categorical = list(self.n_total_point[key].keys())
+        except KeyError as e:
+            raise NotImplementedError(f"Incomplete model: {e}")
 
         groups = [[item]+x_categorical_conditions[1]
                   for item in groups_no_categorical]
@@ -445,7 +446,7 @@ class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
         # print("reg_g_points", reg_g_points)
         # print("x_categorical_conditions", x_categorical_conditions)
         # print("self.usecols", self.usecols)
-        group_key = ','.join(x_categorical_conditions[1]).replace("'", "")
+        group_key = ','.join(x_categorical_conditions[1]).replace("'", "").replace(";", "")
         # print("key is ", group_key)
         # g=reg_g_points[0][]
 
@@ -1338,7 +1339,7 @@ class MdnQueryEngineXCategoricalOneModel(GenericQueryEngine):
         result2file = runtime_config["result2file"]
 
         if func.lower() not in ("count", "sum", "avg", "var"):
-            raise ValueError("function not supported: "+func)
+            raise NotImplementedError("function not supported: "+func)
 
         # print("x_categorical_conditions", x_categorical_conditions)
 

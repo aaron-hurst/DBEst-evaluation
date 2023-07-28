@@ -152,7 +152,7 @@ class SkipGram:
         # print("first columns ", predictions)
 
         for col_idx in range(1,len(sentences[0])):
-            col = sentences[:,col_idx]
+            col = [x.replace(";", "") for x in sentences[:, col_idx]]
             prediction_col = np.array([self.embeddings[i] for i in col])
             predictions = np.concatenate((predictions, prediction_col),axis=1)
         return predictions
