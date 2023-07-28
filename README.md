@@ -1,4 +1,12 @@
+# Evaluation for GD AQP paper
+
+Notes on usage of repository:
+
+* Make a copy of `_config.py` called `config.py` and update the directories defined therein for your system.
+* Run experiments using the scripts `my_evaluation_build.py` and `my_evaluation_run.py`.
+
 # Welcome to DBEst++: A LightWeight Approximate Query Processing (AQP) Engine
+
 This repository implements the idea for the following papers.
 
 <a id="1">[1]</a> 

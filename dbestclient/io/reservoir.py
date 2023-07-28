@@ -188,7 +188,7 @@ class ReservoirSampling:
                             # columns = columns + usecols['gb']
                     # gb_cols = ["gb_"+i for i in usecols['gb']]
                     # columns_categorial = columns_categorial + gb_cols
-                usecols_list = columns_continous + columns_categorial
+                usecols_list = list(set(columns_continous + columns_categorial))
 
                 # print(self.sampledf)
                 # print(self.sampledf["tenantid"])
@@ -325,7 +325,7 @@ class ReservoirSampling:
         if self.usecols["x_categorical"]:
             total_frequency["if_contain_x_categorical"] = True
             data["if_contain_x_categorical"] = True
-            gb = self.sampledf.groupby(self.usecols["x_categorical"])
+            gb = self.sampledf.groupby(*self.usecols["x_categorical"])
             for grp, values in gb:
                 # print(grp, type(grp))
 
@@ -496,7 +496,7 @@ class ReservoirSampling:
 
     def get_frequency_of_categorical_columns_for_gbs(self, gbs, categoricals):
         frequencies = {}
-        gb = self.origin_sample.groupby(categoricals)
+        gb = self.origin_sample.groupby(*categoricals)
         for grp, values in gb:
             # print(grp, type(grp))
 

@@ -140,14 +140,14 @@ class DBEstParser:
         conditions = {}
         for item in self.parsed.tokens:
             clause_lower = item.value.lower().replace("( ", "(").replace(" )", ")")
-            clause = item.value.replace("( ", "(").replace(" )", ")")
+            # clause = item.value.replace("( ", "(").replace(" )", ")")
             if "where" in clause_lower:
 
                 # for token in item:
                 #     print(token.is_group, token.is_keyword,
                 #           token.is_whitespace, token.normalized)
                 splits = (
-                    clause.replace("=", " = ")
+                    clause_lower.replace("=", " = ")
                     .replace("AND", "and")
                     .replace("where", "")
                     .split("and")

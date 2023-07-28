@@ -69,6 +69,19 @@ def approx_integrate(func: callable, x_lb: float, x_ub: float, n_division=20) ->
 def prepare_reg_density_data(density, x_lb: float, x_ub: float, groups: list, reg,  runtime_config):
     # prepare_reg_density_data(density: KdeMdn, x_lb: float, x_ub: float, groups: list, reg: RegMdnGroupBy = None,  n_division: int = 20):
     n_division = runtime_config["n_division"]
+    ####################################################################################
+    # If either bound if missing (None), then replace with estimated maximum value based
+    # on the density model. Also convert bounds that are stored as strings to floats.
+    # Code added by AH on July 28, 2023
+    if x_lb is None:
+        x_lb = density.meanx - density.widthx
+    elif isinstance(x_lb, str):
+        x_lb = float(x_lb.strip(";"))
+    if x_ub is None:
+        x_ub = density.meanx + density.widthx
+    elif isinstance(x_ub, str):
+        x_ub = float(x_ub.strip(";"))
+    ####################################################################################
     x_points, step = np.linspace(x_lb, x_ub, n_division, retstep=True)
 
     # print("groups in prepare integral----------", groups)

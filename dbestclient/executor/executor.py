@@ -200,7 +200,7 @@ class SqlExecutor:
                         "please use another model name to train it.".format(mdl)
                     )
 
-                logger.info("Start creating model " + mdl)
+                logger.debug("Start creating model " + mdl)
                 time1 = datetime.now()
 
                 # if method.lower() == "uniform":
@@ -749,13 +749,15 @@ class SqlExecutor:
                     where_conditions = (
                         self.parser.get_dml_where_categorical_equal_and_range()
                     )
+                    # Where conditions on numerical columns will have upper and lower
+                    # bounds. If the query only contains one bound, then the other will
+                    # be None.
 
                     if (
                         mdl + self.runtime_config["model_suffix"] 
                         not in self.model_catalog.model_catalog
                     ):
-                        logger.warning("Model " + mdl + " does not exist.")
-                        return
+                        raise ValueError("Model " + mdl + " does not exist.")
                     model = self.model_catalog.model_catalog[
                         mdl + self.runtime_config["model_suffix"]
                     ]
@@ -796,8 +798,7 @@ class SqlExecutor:
                         mdl + self.runtime_config["model_suffix"]
                         not in self.model_catalog.model_catalog
                     ):
-                        logger.warning("Model " + mdl + " does not exist.")
-                        return
+                        raise ValueError("Model " + mdl + " does not exist.")
                     model = self.model_catalog.model_catalog[
                         mdl + self.runtime_config["model_suffix"]
                     ]
@@ -902,8 +903,7 @@ class SqlExecutor:
                     logger.debug("OK. model is dropped.")
                     return True
                 else:
-                    logger.warning("Model does not exist!")
-                    return False
+                    raise ValueError("Model " + model_name + " does not exist.")
             elif sql_type == "show":
                 logger.debug("OK")
                 t_start = datetime.now()
