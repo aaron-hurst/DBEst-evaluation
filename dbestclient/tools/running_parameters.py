@@ -109,6 +109,12 @@ class DbestConfig:
         """
         self.config[key] = value
 
+    def get_parameter(self, key: str):
+        try:
+            return self.config[key]
+        except KeyError:
+            raise KeyError(f"{key} is not a valid parameter")
+
     def get_config(self):
         """Return the configuration for DBEstClient.
 

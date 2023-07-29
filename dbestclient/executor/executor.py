@@ -747,6 +747,7 @@ class SqlExecutor:
                 if (
                     self.parser.if_where_exists()
                     and self.parser.get_dml_where_categorical_equal_and_range()[2]
+                    and (func.lower() != "var")
                 ):
 
                     logger.debug("OK")
@@ -784,15 +785,17 @@ class SqlExecutor:
                         filter_dbest=filter_dbest,
                     )
 
-                elif func == "var":
+                elif func.lower() == "var":
                     model = self.model_catalog.model_catalog[
                         mdl + self.runtime_config["model_suffix"]
                     ]
-                    x_header_density = model.density_column
+                    try:
+                        x_header_density = model.density_column
+                    except AttributeError:
+                        raise NotImplementedError("Unable to determine density.")
                     predictions = model.predicts(
                         "var", runtime_config=self.runtime_config
                     )
-                    # return predictions
                 else:  # for query without WHERE range selector clause
                     logger.debug("OK")
                     where_conditions = (
@@ -832,7 +835,7 @@ class SqlExecutor:
                     time_cost = (end_time - start_time).total_seconds()
                     logger.debug("Time cost: %.4fs." % time_cost)
                 logger.debug("------------------------")
-                return predictions
+                return predictions, time_cost
 
             elif sql_type == "set":  # process SET query
                 if self.last_config:
@@ -921,3 +924,11 @@ class SqlExecutor:
 
     def set_table_counts(self, dic):
         self.n_total_records = dic
+
+    def get_parameter(self, key: str):
+        if key in self.config.get_config():
+            return self.config.get_parameter(key)
+        elif key in self.runtime_config:
+            return self.runtime_config[key]
+        else:
+            raise KeyError(f"{key} is not a valid parameter")

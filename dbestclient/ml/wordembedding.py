@@ -149,21 +149,22 @@ class SkipGram:
         # print("keys,", keys)
         headers = np.repeat([self.header_categorical], len(keys), axis=0)
         # print("headers", headers)
-        sentences = np.core.defchararray.add(headers, keys)  # .tolist()
+        sentences = np.core.defchararray.add(headers.astype(str), keys.astype(str))
         # print("sentences",sentences)
         # print("self.embeddings", self.embeddings.keys())
 
         # exit()
-        
-        col0 =  sentences[:,0]
+
+        col0 = sentences[:, 0]
         predictions = np.array([self.embeddings[i] for i in col0])
         # print("first columns ", predictions)
 
-        for col_idx in range(1,len(sentences[0])):
-            col = sentences[:,col_idx]
+        for col_idx in range(1, len(sentences[0])):
+            col = [x.replace(";", "") for x in sentences[:, col_idx]]
             prediction_col = np.array([self.embeddings[i] for i in col])
-            predictions = np.concatenate((predictions, prediction_col),axis=1)
+            predictions = np.concatenate((predictions, prediction_col), axis=1)
         return predictions
+
         # print("predictions are ")
         # print(predictions)
 

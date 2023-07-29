@@ -1738,32 +1738,31 @@ class KdeMdn:
         mus = mus.detach().numpy().reshape(len(zs), -1)  # [0]
         pis = pis.detach().numpy()  # [0]  # .reshape(-1,2)
         sigmas = sigmas.detach().numpy().reshape(len(sigmas), -1)  # [0]
-        print("pis", pis)
-        print("sigmas", sigmas)
-        print("mus", mus)
-        print("mean, width", self.meanx, self.widthx)
+        # print("pis", pis)
+        # print("sigmas", sigmas)
+        # print("mus", mus)
+        # print("mean, width", self.meanx, self.widthx)
         sigmas = sigmas * 0.5 * self.widthx  # + self.meanx
         mus = mus * 0.5 * self.widthx + self.meanx
-        print("mus", mus)
-        print("mus[0]", mus[0])
-        print("pis[0]", pis[0])
-        print("sigma[0]", sigmas[0])
+        # print("mus", mus)
+        # print("mus[0]", mus[0])
+        # print("pis[0]", pis[0])
+        # print("sigma[0]", sigmas[0])
 
         mu_avg_2 = np.power(np.sum(np.multiply(mus, pis, dtype="float64"), axis=1), 2)
-        print("mu_avg_2", mu_avg_2[0])
+        # print("mu_avg_2", mu_avg_2[0])
         mu_2 = np.power(mus, 2, dtype="float64")
         sigmas_2 = np.power(sigmas, 2, dtype="float64")
         adds = np.add(mu_2, sigmas_2, dtype="float64")
-        print("adds", adds[0])
+        # print("adds", adds[0])
         sums = np.multiply(adds, pis, dtype="float64").sum(axis=1, dtype="float64")
-        print("sums", sums[0])
-        print("types", type(sums[0]))
+        # print("sums", sums[0])
+        # print("types", type(sums[0]))
         result = np.subtract(sums, mu_avg_2, dtype="float64").tolist()
         result = np.sqrt(result)
-        print("result", result)
-        print(len(result))
-        result = dict(zip(zs, result))
-        return result
+        # print("result", result)
+        # print(len(result))
+        return pd.DataFrame(zip(zs, result))
 
     def normalize(self, x: list, mean: float, width: float):
         """normalize the data
@@ -2371,8 +2370,8 @@ def test_pm25_2d_density():
     # plt.hist(data,bins=50)
     # plt.show()
     # raise Exception()
-    print(pres_train)
-    print(pm25_train)
+    # print(pres_train)
+    # print(pm25_train)
 
     regMdn = KdeMdn(DbestConfig(), b_store_training_data=True)
     regMdn.fit(pres_train, pm25_train, runtime_config)
@@ -2597,11 +2596,11 @@ def test_RegMdnGroupBy():
     )
     regMdn = RegMdnGroupBy(b_store_training_data=True)
     regMdn.fit(pres_train, temp_train, pm25_train, n_epoch=5, n_gaussians=10)
-    print(pres_train, temp_train, pm25_train)
-    print("*" * 10)
+    # print(pres_train, temp_train, pm25_train)
+    # print("*" * 10)
     # print(regMdn.predict(pres_train[:5], temp_train[:5], b_plot=False))
     # print("*"*10)
-    print(regMdn.predict([1010, 1020], [-2, -2], b_plot=False))
+    # print(regMdn.predict([1010, 1020], [-2, -2], b_plot=False))
     # regMdn.score()
 
 

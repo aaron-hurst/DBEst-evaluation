@@ -4,6 +4,7 @@
 # the University of Warwick
 # Q.Ma.2@warwick.ac.uk
 
+import logging
 import math
 from collections import Counter
 from datetime import datetime
@@ -39,6 +40,8 @@ from torch.multiprocessing import Pool as PoolGPU
 #     print("Fail to set start method as spawn for pytorch multiprocessing, " +
 #           "use default in advance. (see queryenginemdn "
 #           "for more info.)")
+
+logger = logging.getLogger(__name__)
 
 
 class GenericQueryEngine:
@@ -421,16 +424,19 @@ class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
             n_jobs = runtime_config["n_jobs"]
 
         if func.lower() not in ("count", "sum", "avg", "var"):
-            raise ValueError("function not supported: "+func)
+            raise NotImplementedError(f"Function not supported: {func}")
 
         if len(x_categorical_conditions[1]) > 1:
-            key = ",".join(x_categorical_conditions[1]).replace("'", "")
+            key = ",".join(
+                [xcc.replace(";", "") for xcc in x_categorical_conditions[1]]
+            ).replace("'", "")
         else:
-            key = x_categorical_conditions[1][0].replace("'", "")
+            key = x_categorical_conditions[1][0].replace(";", "").replace("'", "")
 
-        # print("self.n_total_point", self.n_total_point)
-
-        groups_no_categorical = list(self.n_total_point[key].keys())
+        try:
+            groups_no_categorical = list(self.n_total_point[key].keys())
+        except KeyError as e:
+            raise NotImplementedError(f"Incomplete model: {e}")
 
         groups = [[item]+x_categorical_conditions[1]
                   for item in groups_no_categorical]
@@ -442,7 +448,7 @@ class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
         # print("reg_g_points", reg_g_points)
         # print("x_categorical_conditions", x_categorical_conditions)
         # print("self.usecols", self.usecols)
-        group_key = ','.join(x_categorical_conditions[1]).replace("'", "")
+        group_key = ','.join(x_categorical_conditions[1]).replace("'", "").replace(";", "")
         # print("key is ", group_key)
         # g=reg_g_points[0][]
 
@@ -650,7 +656,7 @@ class MdnQueryEngine(GenericQueryEngine):
         # result2file = self.config.get_config()["result2file"]
 
         if func.lower() not in ("count", "sum", "avg", "var"):
-            raise ValueError("function not supported: "+func)
+            raise NotImplementedError(f"function not supported: {func}.")
         if groups is None:  # provide predictions for all groups.
             groups = self.groupby_values
 
@@ -826,17 +832,13 @@ class MdnQueryEngine(GenericQueryEngine):
                         #     host, slaves.get()[host], "select", query)
 
         elif func.lower() == "var":
-            print("predict var")
-
             results = prepare_var(
                 self.kde, groups=groups, runtime_config=runtime_config)  # {"group":999.99}
         else:
             raise TypeError("unexpected aggregated.")
         runtime_config["b_print_to_screen"] = b_print_to_screen
         if runtime_config["b_print_to_screen"]:
-            for key in results:
-                print(",".join(key.split("-")) +
-                      "," + str(results[key]))
+            logger.debug(f"Results: {results}")
 
         if result2file is not None:
             with open(result2file, 'w') as f:
