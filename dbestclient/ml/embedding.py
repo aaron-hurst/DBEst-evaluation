@@ -16,9 +16,7 @@
 # limitations under the License.
 #
 
-
-NumberOFAtrributes = 0
-
+import logging
 import math
 import multiprocessing
 import os
@@ -28,12 +26,16 @@ import numpy as np
 
 from gensim.models import Word2Vec
 
+logger = logging.getLogger(__name__)
+
+NumberOFAtrributes = 0
+
 
 class WordEmbedding:
     def __init__(self):
         self.embedding = None
         self.dim = None
-        print("start training embedding")
+        logger.debug("Start training embedding...")
 
     # def describing(self, Indata):
     # describe = {}
@@ -86,7 +88,7 @@ class WordEmbedding:
         del vocab  ############################
         self.embedding = Group
 
-        print("finish training embedding")
+        logger.debug("Finished training embedding...")
         return Group
 
     def predict(self, key):

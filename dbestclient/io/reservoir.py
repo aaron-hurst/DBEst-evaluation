@@ -11,6 +11,7 @@ http://erikerlandson.github.io/blog/2015/11/20/very-fast-reservoir-sampling/
 
 from __future__ import division, print_function, with_statement
 
+import logging
 from math import log
 from random import random
 from sys import stderr, stdin
@@ -21,10 +22,7 @@ from statsmodels.compat.pandas import frequencies
 
 from dbestclient.tools.variables import UseCols
 
-# try:
-#     range = xrange
-# except NameError:
-#     pass
+logger = logging.getLogger(__name__)
 
 
 class ReservoirSampling:
@@ -56,7 +54,7 @@ class ReservoirSampling:
         )
         f.close()
 
-        print("Reading data file...")
+        logger.debug("Reading data file...")
         with open(file, "r") as data:
             if verbose:
 
@@ -183,14 +181,17 @@ class ReservoirSampling:
                             # columns = columns + usecols['gb']
                     # gb_cols = ["gb_"+i for i in usecols['gb']]
                     # columns_categorial = columns_categorial + gb_cols
-                usecols_list = columns_continous + columns_categorial
 
                 # print(self.sampledf)
                 # print(self.sampledf["tenantid"])
+                
+                # Prevent duplicate columns
+                usecols_list = list(set(columns_continous + columns_categorial))
+                self.sampledf = self.sampledf[usecols_list]
+                
                 # print(usecols)
                 # print("usecols_list", usecols_list)
 
-                self.sampledf = self.sampledf[usecols_list]
                 # print(self.sampledf)
                 # print(columns_continous)
                 # print(columns_categorial)
@@ -313,7 +314,7 @@ class ReservoirSampling:
         return ft
 
     def get_groupby_frequency_and_data(self):
-        print("get frequency info from data....")
+        logger.debug("Get frequency info from data...")
         # print("self.sampledf", self.sampledf)
         total_frequency = {}
         data = {}

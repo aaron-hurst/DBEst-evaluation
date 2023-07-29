@@ -4,6 +4,7 @@
 # the University of Warwick
 # Q.Ma.2@warwick.ac.uk
 
+import logging
 import os
 import os.path
 import warnings
@@ -43,6 +44,8 @@ from dbestclient.tools.dftools import (
 from dbestclient.tools.running_parameters import RUNTIME_CONF, DbestConfig
 from dbestclient.tools.variables import Slave, UseCols
 
+logger = logging.getLogger(__name__)
+
 
 class SqlExecutor:
     """
@@ -70,7 +73,7 @@ class SqlExecutor:
             # load simple models
             if file_name.endswith(self.runtime_config["model_suffix"]):
                 if n_model == 0:
-                    print("start loading pre-existing models.")
+                    logger.debug("start loading pre-existing models.")
 
                 with open(
                     self.config.get_config()["warehousedir"] + "/" + file_name, "rb"
@@ -83,12 +86,10 @@ class SqlExecutor:
                 n_model += 1
 
         if n_model > 0:
-            print("Loaded " + str(n_model) + " models.", end=" ")
+            logger.info(f"Loaded {n_model} models.")
             if self.runtime_config["b_show_latency"]:
                 t2 = datetime.now()
-                print("time cost ", (t2 - t1).total_seconds(), "s")
-            else:
-                print()
+                logger.debug(f"time cost {(t2 - t1).total_seconds()} seconds")
 
     def init_slaves(self):
         file_name = os.path.join(self.config.config["warehousedir"], "slaves")
@@ -98,13 +99,13 @@ class SqlExecutor:
                     if "#" not in line:
                         self.runtime_config["slaves"].add(Slave(line))
             if self.runtime_config["v"]:
-                print(
+                logger.debug(
                     "Cluster mode is on, slaves are "
                     + self.runtime_config["slaves"].to_string()
                 )
         else:
             if self.runtime_config["v"]:
-                print("Local mode is on, as no slaves are provided.")
+                logger.debug("Local mode is on, as no slaves are provided.")
 
     def execute(self, sql):
         # prepare the parser
@@ -114,8 +115,7 @@ class SqlExecutor:
         elif type(sql) == DBEstParser:
             self.parser = sql
         else:
-            print("Unrecognized SQL! Please check it!")
-            exit(-1)
+            raise ValueError("Unrecognized SQL! Please check it!")
 
         # execute the query
         if self.parser.if_nested_query():
@@ -197,13 +197,11 @@ class SqlExecutor:
                         mdl + self.runtime_config["model_suffix"],
                     )
                 ):
-                    print(
-                        "Model {0} exists in the warehouse, please use"
-                        " another model name to train it.".format(mdl)
+                    raise FileExistsError(
+                        f"Model {mdl} exists in the warehouse, use another model name to train it."
                     )
-                    return
 
-                print("Start creating model " + mdl)
+                logger.debug("Start creating model " + mdl)
                 time1 = datetime.now()
 
                 # if method.lower() == "uniform":
@@ -227,9 +225,9 @@ class SqlExecutor:
                         split_char=self.config.get_config()["csv_split_char"],
                         num_total_records=self.n_total_records,
                     )
-                
+
                 if self.runtime_config["sampling_only"]:
-                    print("sample is generated and saved, end.")
+                    logger.debug("sample is generated and saved, end.")
                     return
 
                 if not self.parser.if_contain_groupby():  # if group by is not involved
@@ -732,8 +730,8 @@ class SqlExecutor:
                 time2 = datetime.now()
                 t = (time2 - time1).seconds
                 if self.runtime_config["b_show_latency"]:
-                    print("time cost: " + str(t) + "s.")
-                print("------------------------")
+                    logger.debug("time cost: " + str(t) + " s.")
+                logger.debug("------------------------")
 
                 # rest config
                 self.last_config = None
@@ -751,17 +749,19 @@ class SqlExecutor:
                     and self.parser.get_dml_where_categorical_equal_and_range()[2]
                 ):
 
-                    print("OK")
+                    logger.debug("OK")
                     where_conditions = (
                         self.parser.get_dml_where_categorical_equal_and_range()
                     )
+                    # Where conditions on numerical columns will have upper and lower
+                    # bounds. If the query only contains one bound, then the other will
+                    # be None.
 
                     if (
                         mdl + self.runtime_config["model_suffix"] 
                         not in self.model_catalog.model_catalog
                     ):
-                        print("Model " + mdl + " does not exist.")
-                        return
+                        raise ValueError(f"Model {mdl} does not exist.")
                     model = self.model_catalog.model_catalog[
                         mdl + self.runtime_config["model_suffix"]
                     ]
@@ -785,7 +785,6 @@ class SqlExecutor:
                     )
 
                 elif func == "var":
-                    print("var!!")
                     model = self.model_catalog.model_catalog[
                         mdl + self.runtime_config["model_suffix"]
                     ]
@@ -795,7 +794,7 @@ class SqlExecutor:
                     )
                     # return predictions
                 else:  # for query without WHERE range selector clause
-                    print("OK")
+                    logger.debug("OK")
                     where_conditions = (
                         self.parser.get_dml_where_categorical_equal_and_range()
                     )
@@ -803,8 +802,7 @@ class SqlExecutor:
                         mdl + self.runtime_config["model_suffix"]
                         not in self.model_catalog.model_catalog
                     ):
-                        print("Model " + mdl + " does not exist.")
-                        return
+                        raise ValueError(f"Model {mdl} does not exist.")
                     model = self.model_catalog.model_catalog[
                         mdl + self.runtime_config["model_suffix"]
                     ]
@@ -820,7 +818,7 @@ class SqlExecutor:
 
                 if self.runtime_config["b_print_to_screen"]:
                     # print(predictions.to_csv(sep=',', index=False))  # sep='\t'
-                    print(predictions.to_string(index=False))  # max_rows=5
+                    logger.debug(predictions.to_string(index=False))  # max_rows=5
 
                 if self.runtime_config["result2file"]:
                     predictions.to_csv(self.runtime_config["result2file"],header=False, sep=',', index=False, quoting=csv.QUOTE_NONE, quotechar="",  escapechar=" ")
@@ -832,8 +830,8 @@ class SqlExecutor:
                 if self.runtime_config["b_show_latency"]:
                     end_time = datetime.now()
                     time_cost = (end_time - start_time).total_seconds()
-                    print("Time cost: %.4fs." % time_cost)
-                print("------------------------")
+                    logger.debug("Time cost: %.4fs." % time_cost)
+                logger.debug("------------------------")
                 return predictions
 
             elif sql_type == "set":  # process SET query
@@ -849,12 +847,10 @@ class SqlExecutor:
                             value = value.lower()
                             if value not in ["onehot", "binary", "embedding"]:
                                 value = "binary"
-                                print(
-                                    "encoder is not set to a proper value, use default encoding type: binary."
-                                )
+                                logger.warning("Encoder is invalid. Using default: binary.")
 
                         self.config.get_config()[key] = value
-                        print("OK, " + key + " is updated.")
+                        logger.debug(f"OK, {key} is updated.")
                     else:  # if variable is within runtime_config
                         # check if "device" is set. we need to make usre when GPU is not availabe, cpu is used instead.
                         if key.lower() == "device":
@@ -866,7 +862,7 @@ class SqlExecutor:
                                         try:
                                             set_start_method_torch("spawn")
                                         except RuntimeError:
-                                            print(
+                                            logger.warning(
                                                 "Fail to set start method as spawn for pytorch multiprocessing, "
                                                 + "use default in advance. (see queryenginemdn "
                                                 "for more info.)"
@@ -874,26 +870,25 @@ class SqlExecutor:
                                     else:
                                         set_start_method_cpu("spawn")
                                     if self.runtime_config["v"]:
-                                        print("device is set to " + value)
+                                        logger.debug("device is set to " + value)
                                 else:
                                     if value == "gpu":
-                                        print("GPU is not available, use CPU instead")
+                                        logger.debug("GPU is not available, use CPU instead")
                                         value = "cpu"
                                     if value == "cpu":
                                         if self.runtime_config["v"]:
-                                            print("device is set to " + value)
+                                            logger.debug("device is set to " + value)
                             else:
-                                print("Only GPU or CPU is supported.")
-                                return
+                                raise ValueError("Only GPU or CPU is supported.")
 
                         self.runtime_config[key] = value
                         if key in self.runtime_config:
-                            print("OK, " + key + " is updated.")
+                            logger.debug("OK, " + key + " is updated.")
                         else:
-                            print("OK, local variable " + key + " is defined.")
+                            logger.debug("OK, local variable " + key + " is defined.")
                 except TypeError:
                     # self.parser.get_set_variable_value() does not return correctly
-                    print("Parameter is not changed. Please check your SQL!")
+                    logger.debug("Parameter is not changed. Please check your SQL!")
 
                 # save the config
                 self.last_config = self.config
@@ -907,24 +902,22 @@ class SqlExecutor:
                 )
                 if os.path.isfile(model_path):
                     os.remove(model_path)
-                    print("OK. model is dropped.")
+                    logger.debug("OK. model is dropped.")
                     return True
                 else:
-                    print("Model does not exist!")
-                    return False
+                    raise ValueError("Model " + model_name + " does not exist.")
             elif sql_type == "show":
-                print("OK")
+                logger.debug("OK")
                 t_start = datetime.now()
                 if self.runtime_config["b_print_to_screen"]:
                     for key in self.model_catalog.model_catalog:
-                        print(key.replace(self.runtime_config["model_suffix"], ""))
+                        logger.debug(key.replace(self.runtime_config["model_suffix"], ""))
                 if self.runtime_config["v"]:
                     t_end = datetime.now()
                     time_cost = (t_end - t_start).total_seconds()
-                    print("Time cost: %.4fs." % time_cost)
+                    logger.debug("Time cost: %.4fs." % time_cost)
             else:
-                print("Unsupported query type, please check your SQL.")
-                return
+                raise ValueError("Unsupported query type, please check your SQL.")
 
     def set_table_counts(self, dic):
         self.n_total_records = dic

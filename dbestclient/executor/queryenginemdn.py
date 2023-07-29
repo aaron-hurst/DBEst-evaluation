@@ -95,7 +95,7 @@ class MdnQueryEngineNoRange(GenericQueryEngine):
         else:
             config = self.config.copy()
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("Training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
                 gbs, None, ys, runtime_config,usecols=usecols)
         return self
@@ -198,7 +198,7 @@ class MdnQueryEngineRangeNoCategorical(GenericQueryEngine):
         else:
             config = self.config.copy()
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("Training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
                 gbs_data, xs_data, ys_data, runtime_config,usecols=usecols)
 
@@ -391,7 +391,7 @@ class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
 
     def fit(self, mdl_name: str, origin_table_name: str, gbs, xs, ys, total_points: dict, usecols: dict, runtime_config: dict):
         if runtime_config['v']:
-            print("training "+mdl_name+"...")
+            logger.debug(f"Training {mdl_name}...")
         self.mdl_name = mdl_name
         self.n_total_point = total_points
         self.usecols = usecols
@@ -400,7 +400,7 @@ class MdnQueryEngineNoRangeCategoricalOneModel(GenericQueryEngine):
         else:
             config = self.config.copy()
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("Training regression...")
 
             # print("xs", xs)
             # print("ys", ys)
@@ -1306,7 +1306,7 @@ class MdnQueryEngineXCategoricalOneModel(GenericQueryEngine):
                 gbs, xs, runtime_config)
 
             if runtime_config['v']:
-                print("training regression...")
+                logger.debug("Training regression...")
             self.reg = RegMdnGroupBy(config, b_store_training_data=False).fit(
                 gbs, xs, ys, runtime_config,usecols=usecols)
             # kdeModelWrapper = KdeModelTrainer(

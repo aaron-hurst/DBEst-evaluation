@@ -1,3 +1,4 @@
+import logging
 import multiprocessing
 
 import numpy as np
@@ -8,6 +9,8 @@ from gensim.models import Word2Vec
 # from numpy.core.defchararray import startswith
 
 # https://towardsdatascience.com/word-embedding-with-word2vec-and-fasttext-a209c1d3e12c
+
+logger = logging.getLogger(__name__)
 
 
 class SkipGram:
@@ -36,11 +39,8 @@ class SkipGram:
         NG=1,
         b_reg=True,
     ):
-        # categoricals = (
-        #     np.concatenate((gb_data, equal_data), axis=1)
-        #     if equal_data is not None
-        #     else gb_data
-        # )
+        ################################################################################
+        # This code may cause errors due to dimensionality mismatch.
         categoricals = (
             np.concatenate(
                 (categorical_data, range_data[:, np.newaxis].astype(str)), axis=1
@@ -48,7 +48,11 @@ class SkipGram:
             if range_data is not None
             else categorical_data
         )
+        ################################################################################
+
         if b_reg:
+            ############################################################################
+            # This code may causes errors due to dimensionality mismatch.
             categoricals = (
                 np.concatenate(
                     (categoricals, label_data[:, np.newaxis].astype(str)), axis=1
@@ -56,6 +60,10 @@ class SkipGram:
                 if label_data is not None
                 else categorical_data
             )
+            ############################################################################
+
+
+            
 
         if usecols is not None:
             self.usecols = usecols
@@ -133,7 +141,7 @@ class SkipGram:
                 if word.startswith(head):
                     self.embeddings[word] = model.wv[word]
         # print(self.embeddings.keys())
-        print("finish training embedding.")
+        logger.debug("Finished training embedding.")
         return self
 
     def predicts(self, keys):

@@ -6,6 +6,7 @@
 
 
 import itertools as it
+import logging
 import math
 import random
 import sys
@@ -35,6 +36,8 @@ from dbestclient.ml.integral import approx_count, prepare_reg_density_data
 from dbestclient.ml.wordembedding import SkipGram
 
 USE_SKIP_GRAM = True
+
+logger = logging.getLogger(__name__)
 
 # https://www.katnoria.com/mdn/
 # https://github.com/sagelywizard/pytorch-mdn
@@ -213,6 +216,11 @@ def normalize(x_point: float, mean: float, width: float) -> float:
     Returns:
         float: the normalized value
     """
+    if width == 0:
+        if isinstance(x_point, (list, np.ndarray)):
+            return np.zeros_like(x_point)
+        else:
+            return 0
     return (x_point - mean) / width * 2
 
 
@@ -269,6 +277,8 @@ class GenericMdn:
         Returns:
             list: the normalized data.
         """
+        if self.widthx == 0:
+            return np.zeros_like(xs)
         return (xs - self.meanx) / self.widthx * 2
 
     def denormalize(self, xs):
@@ -387,7 +397,7 @@ class RegMdnGroupBy:
                 # print(z_group)
                 # print(type(z_group))
                 # exit()
-                print("embedding inference...")
+                logger.debug("Embedding inference...")
                 zs_encoded = self.enc.predicts(z_group)
                 # print("zs_encoded")
                 # print(zs_encoded)
@@ -395,7 +405,7 @@ class RegMdnGroupBy:
                 # exit()
                 # raise TypeError("embedding is not supported yet.")
 
-            print("start normalizing data...")
+            logger.debug("Start normalizing data...")
             if self.b_normalize_data:
                 if x_points is not None:
                     self.meanx = (np.max(x_points) + np.min(x_points)) / 2
@@ -422,17 +432,14 @@ class RegMdnGroupBy:
                 self.x_points = None
                 self.y_points = None
                 self.z_points = None
-            
-            print("transform data from MDN training...")
+
+            logger.debug("Transform data from MDN training...")
             if encoder in ["onehot", "binary", "embedding"]:
                 if x_points is not None:
-                    xs_encoded = x_points[:, np.newaxis]
-                    xzs_encoded = np.concatenate(
-                        [xs_encoded, zs_encoded], axis=1
-                    )#.tolist()
+                    xzs_encoded = np.hstack([x_points[:, np.newaxis], zs_encoded])
                 else:
                     # print(zs_encoded)
-                    xzs_encoded = zs_encoded#.tolist()
+                    xzs_encoded = zs_encoded  # .tolist()
                     # print(xzs_encoded[:10])
                 #tensor_xzs = torch.stack([torch.Tensor(i) for i in xzs_encoded])
                 tensor_xzs = torch.from_numpy(xzs_encoded.astype(np.float32))
@@ -455,7 +462,7 @@ class RegMdnGroupBy:
             # print(tensor_ys)
             # exit()
             # print(y_points[:5])
-            print("finish transforming data from MDN training...")
+            logger.debug("Finished transforming data from MDN training.")
 
             # move variables to cuda
             tensor_xzs = tensor_xzs.to(device)
@@ -530,7 +537,7 @@ class RegMdnGroupBy:
             for epoch in range(n_epoch):
                 if runtime_config["v"]:
                     if epoch % 1 == 0:
-                        print("< Epoch {}".format(epoch))
+                        logger.debug(f"< Epoch {epoch}")
                 # train the model
                 for minibatch, labels in my_dataloader:
                     minibatch.to(device)
@@ -542,7 +549,7 @@ class RegMdnGroupBy:
                     optimizer.step()
                 my_lr_scheduler.step()
             self.model.eval()
-            print("Finish regression training.")
+            logger.debug("Finish regression training.")
             return self
         else:
             return self.fit_grid_search(z_group, x_points, y_points, runtime_config)
@@ -1016,7 +1023,7 @@ class RegMdn:
         optimizer = optim.Adam(self.model.parameters())
         for epoch in range(num_epoch):
             if epoch % 100 == 0:
-                print("< Epoch {}".format(epoch))
+                logger.debug("< Epoch {}".format(epoch))
             # train the model
             for minibatch, labels in my_dataloader:
                 minibatch.to(device)
@@ -1162,7 +1169,7 @@ class RegMdn:
         optimizer = optim.Adam(self.model.parameters())
         for epoch in range(num_epoch):
             if epoch % 5 == 0:
-                print("< Epoch {}".format(epoch))
+                logger.debug("< Epoch {}".format(epoch))
             # train the model
             for minibatch, labels in my_dataloader:
                 self.model.zero_grad()
@@ -1299,6 +1306,8 @@ class RegMdn:
         Returns:
             [type]: [description]
         """
+        if width == 0:
+            return np.zeros_like(x)
         return (x - mean) / width * 2
 
     def denormalize(self, x, mean, width):
@@ -1494,7 +1503,7 @@ class KdeMdn:
             for epoch in range(num_epoch):
                 if runtime_config["v"]:
                     if epoch % 1 == 0:
-                        print("< Epoch {}".format(epoch))
+                        logger.debug("< Epoch {}".format(epoch))
                 # train the model
                 for minibatch, labels in my_dataloader:
                     self.model.zero_grad()
@@ -1508,7 +1517,7 @@ class KdeMdn:
                 my_lr_scheduler.step()
             # turn the model to eval mode.
             self.model.eval()
-            print("finish mdn training...")
+            logger.debug("Finished mdn training.")
             return self
         else:  # grid search
             # , b_normalize=b_normalize
@@ -1767,6 +1776,8 @@ class KdeMdn:
         Returns:
             list: the normalized data.
         """
+        if width == 0:
+            return np.zeros_like(x)
         return (x - mean) / width * 2
 
     def denormalize(self, x, mean, width):
