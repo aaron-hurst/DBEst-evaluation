@@ -410,7 +410,7 @@ class RegMdnGroupBy:
                 if x_points is not None:
                     self.meanx = (np.max(x_points) + np.min(x_points)) / 2
                     self.widthx = np.max(x_points) - np.min(x_points)
-                self.meany = (np.max(y_points) + np.min(y_points)) / 2
+                self.meany = (np.max(y_points) + np.min(y_points)) / 2  # models with only categorical columns: TypeError: unsupported operand type(s) for /: 'str' and 'int'
                 self.widthy = np.max(y_points) - np.min(y_points)
 
                 if x_points is not None:

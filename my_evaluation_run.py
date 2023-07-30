@@ -96,7 +96,7 @@ def main():
         ]
         total_columns = len(set([aggregation_column, *predicate_columns]))
         if total_columns > 2:
-            logger.info(f"Unsupported query: more than two columns: {total_columns}.")
+            logger.info(f"Failed query {i}: more than two columns: {total_columns}.")
             continue
         table = query_split[3]
         model = f"{table}_{aggregation_column}_{predicate_columns[0]}_{SAMPLE_SIZE}"
@@ -105,7 +105,7 @@ def main():
         try:
             estimate, t_estimate = sql_executor.execute(query_dbestpp)
         except NotImplementedError as e:
-            logger.info(f"Failed to execute query {i}: {e}")
+            logger.info(f"Failed query {i}: {e}")
             continue
         estimate = estimate.iloc[0, 1]
         results.append(

@@ -18,7 +18,7 @@ DATASET_ID = "usdot-flights"
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
 
-SAMPLE_SIZE = 2000
+SAMPLE_SIZE = 1000
 SAVE_SAMPLE = True
 SAMPLING_METHOD = "uniform"
 
@@ -30,7 +30,7 @@ def main():
     # Setup
     output_dir = os.path.join(RESULTS_DIR, "aqp", "dbestpp")
     schema_filepath = os.path.join(DATA_DIR, "schemas", "aqp", f"{DATASET_ID}.json")
-
+    data_filepath = os.path.join(DATA_DIR, "processed", f"{DATASET_ID}.csv")
     sample_filepath = os.path.join(
         output_dir, "data", f"{DATASET_ID}__sample_size_{SAMPLE_SIZE}.csv"
     )
@@ -38,6 +38,7 @@ def main():
         output_dir, "models", f"{DATASET_ID}_sample_size_{SAMPLE_SIZE}"
     )
     metadata_filepath = os.path.join(models_dir, "build_metadata.txt")
+    n = sum(1 for _ in open(data_filepath)) - 1  # excludes header
 
     # If not already created, extract a random sample from the dataset and save it as a
     # CSV file with an additional "dummy" group column. DBEst++ uses the group column
@@ -51,8 +52,6 @@ def main():
     # NOTE: A separate file is created for each sample size used.
     if not os.path.isfile(sample_filepath):
         logger.info("Generating sample file with dummy group by column...")
-        data_filepath = os.path.join(DATA_DIR, "processed", f"{DATASET_ID}.csv")
-        n = sum(1 for _ in open(data_filepath)) - 1  # excludes header
         skip_rows = np.sort(
             np.random.choice(np.arange(1, n + 1), n - SAMPLE_SIZE, replace=False)
         )
@@ -68,6 +67,7 @@ def main():
         schema = json.load(f)
     t_modelling_start = perf_counter()
     sql_executor = SqlExecutor(models_dir, save_sample=SAVE_SAMPLE)
+    sql_executor.n_total_records = {"total": n}
     n_columns = len(schema["column_names"])
     for i in range(n_columns):
         for j in range(n_columns):
@@ -85,14 +85,13 @@ def main():
                 f"method {SAMPLING_METHOD} size {SAMPLE_SIZE};"
             )
             try:
-                logger.info(f"Building model {table_name}...")
                 sql_executor.execute(sql_create_model)
+                logger.info(f"Built model: {table_name}")
             except FileExistsError:
                 logger.info(f"Model already exists: {table_name}")
                 continue
-            # except (ValueError, IndexError, TypeError) as e:
-            #     logger.error(f"Failed to build model for column pair ({i}, {j}): {e}")
-            #     continue
+            except NotImplementedError as e:
+                logger.warning(f"Failed to build model {table_name}: {e}")
     t_modelling = perf_counter() - t_modelling_start
 
     # Get total size of models

@@ -144,6 +144,16 @@ class SqlExecutor:
 
                 xheader_continous, xheader_categorical = self.parser.get_x()
 
+                ########################################################################
+                # DBEst++ does not seem to support models where both the aggregation and
+                # predicate column are categorical. Therefore, I have made this check
+                # here to terminate such models early.
+                if (not xheader_continous) and (yheader[1] == "categorical"):
+                    raise NotImplementedError(
+                        "Models involving only categorical columns not supported."
+                    )
+                ########################################################################
+
                 ratio = self.parser.get_sampling_ratio()
                 method = self.parser.get_sampling_method()
                 table_header = self.config.get_config()["table_header"]
@@ -742,6 +752,14 @@ class SqlExecutor:
                 predictions = None
                 # DML, provide the prediction using models
                 mdl = self.parser.get_from_name()
+                ########################################################################
+                # Check that the relevant model exists
+                if (
+                    mdl + self.runtime_config["model_suffix"] 
+                    not in self.model_catalog.model_catalog
+                ):
+                    raise NotImplementedError(f"Model {mdl} does not exist.")
+                ########################################################################
                 _, [func, yheader, *_] = self.parser.get_dml_aggregate_function_and_variable()
                 # for query with WHERE clause containing range selector
                 if (
@@ -758,11 +776,6 @@ class SqlExecutor:
                     # bounds. If the query only contains one bound, then the other will
                     # be None.
 
-                    if (
-                        mdl + self.runtime_config["model_suffix"] 
-                        not in self.model_catalog.model_catalog
-                    ):
-                        raise ValueError(f"Model {mdl} does not exist.")
                     model = self.model_catalog.model_catalog[
                         mdl + self.runtime_config["model_suffix"]
                     ]

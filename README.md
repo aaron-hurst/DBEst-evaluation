@@ -1,4 +1,14 @@
+# Evaluation for GD AQP paper
+
+Notes on usage of repository:
+
+* Use Python version `3.8.10`.
+* Use `pip` to install packages listed in `requirements.txt`. It is important to use the same package versions.
+* Make a copy of `_config.py` called `config.py` and update the directories defined therein for your system.
+* Run experiments using the scripts `my_evaluation_build.py` and `my_evaluation_run.py`.
+
 # Welcome to DBEst++: A LightWeight Approximate Query Processing (AQP) Engine
+
 This repository implements the idea for the following papers.
 
 <a id="1">[1]</a> 
