@@ -114,22 +114,28 @@ class SkipGram:
         # print(headers, "-" * 20, ">" * 20)
         NG=len(self.header_categorical)
         self.dim = dim * len(self.header_categorical)
-        sentences = np.core.defchararray.add(headers, categoricals).tolist()
+
+        ################################################################################
+        # Convert both arrays to string to prevent numpy type errors
+        sentences = np.core.defchararray.add(
+            headers.astype(str), categoricals.astype(str)
+        ).tolist()
+        ################################################################################
         # print(sentences)
 
         workers = multiprocessing.cpu_count() if workers == -1 else 1
         model = Word2Vec(
             sentences,
-            size=int(self.dim / NG),
+            vector_size=int(self.dim / NG),
             window=window,
             min_count=min_count,
             negative=negative,
-            iter=iters,
+            epochs=iters,
             workers=workers,
         )
 
         # word_vectors = model.wv  # Matix of model
-        vocab = model.wv.vocab  # Vocabulary
+        vocab = model.wv.key_to_index  # Vocabulary
         #self.dim = dim * len(self.header_categorical)
         # print("dim is", self.dim)
         # print(model["citylondon"])

@@ -64,15 +64,15 @@ class WordEmbedding:
         # print(NG)# number of group by attributes
         w2v = Word2Vec(
             sentences,
-            size=int(dim / NG),
+            vector_size=int(dim / NG),
             window=1,
             min_count=1,
             negative=30,
-            iter=iter,
+            epopch=iter,
             workers=multiprocessing.cpu_count(),
         )  # ,ns_exponent=0.0
         word_vectors = w2v.wv  # Matix of model
-        vocab = w2v.wv.vocab  # Vocabulary
+        vocab = w2v.wv.key_to_index  # Vocabulary
         self.dim = dim
 
         count = 0

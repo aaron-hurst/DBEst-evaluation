@@ -12,12 +12,12 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, QUERIES_DIR
 
 
-# DATASET_ID = "uci-household_power_consumption"
-# QUERY_SET = 15
-DATASET_ID = "usdot-flights"
-QUERY_SET = 4
+DATASET_ID = "uci-household_power_consumption"
+QUERY_SET = 15
+# DATASET_ID = "usdot-flights"
+# QUERY_SET = 4
 
-SAMPLE_SIZE = 1000
+SAMPLE_SIZE = 900
 
 
 def get_relative_error_pct(true, predicted):
@@ -203,7 +203,7 @@ def main():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
     logger = logging.getLogger("main")
-    logging.getLogger("gensim.models.base_any2vec").setLevel(logging.ERROR)
-    logging.getLogger("gensim.models.word2vec").setLevel(logging.ERROR)
-    logging.getLogger("gensim.utils").setLevel(logging.ERROR)
+    # logging.getLogger("gensim.models.base_any2vec").setLevel(logging.ERROR)
+    # logging.getLogger("gensim.models.word2vec").setLevel(logging.ERROR)
+    # logging.getLogger("gensim.utils").setLevel(logging.ERROR)
     main()

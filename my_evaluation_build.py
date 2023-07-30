@@ -12,8 +12,8 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, DATA_DIR
 
 
-# DATASET_ID = "uci-household_power_consumption"
-DATASET_ID = "usdot-flights"
+DATASET_ID = "uci-household_power_consumption"
+# DATASET_ID = "usdot-flights"
 
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
@@ -145,7 +145,6 @@ def main():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
     logger = logging.getLogger("main")
-    logging.getLogger("gensim.models.base_any2vec").setLevel(logging.ERROR)
     logging.getLogger("gensim.models.word2vec").setLevel(logging.ERROR)
     logging.getLogger("gensim.utils").setLevel(logging.ERROR)
     main()

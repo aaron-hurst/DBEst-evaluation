@@ -18,7 +18,7 @@ from sys import stderr, stdin
 
 import numpy as np
 import pandas as pd
-from statsmodels.compat.pandas import frequencies
+# from statsmodels.compat.pandas import frequencies
 
 from dbestclient.tools.variables import UseCols
 

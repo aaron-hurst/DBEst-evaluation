@@ -779,6 +779,15 @@ class SqlExecutor:
                     model = self.model_catalog.model_catalog[
                         mdl + self.runtime_config["model_suffix"]
                     ]
+                    ####################################################################
+                    # Check range predicate (x) is continuous. DBEst++ does not natively
+                    # support range queries against non-numerical columns, e.g. time and
+                    # date
+                    if "density_column" not in model.__dict__:
+                        raise NotImplementedError(
+                            "Range queries over continuous columns not supported"
+                        )
+                    ####################################################################
                     x_header_density = model.density_column
 
                     x_lb = where_conditions[2][x_header_density][0]

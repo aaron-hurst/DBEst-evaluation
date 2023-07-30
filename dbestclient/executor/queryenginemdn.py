@@ -171,6 +171,7 @@ class MdnQueryEngineRangeNoCategorical(GenericQueryEngine):
         self.usecols = None
         self.reg = None
         self.kde = None
+        self.density_column = None
 
     def fit(self, mdl_name: str, origin_table_name: str, gbs_data, xs_data, ys_data, total_points: dict, usecols: dict, runtime_config: dict):
         if runtime_config['v']:
