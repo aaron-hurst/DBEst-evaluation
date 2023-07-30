@@ -12,15 +12,16 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, DATA_DIR
 
 
-DATASET_ID = "uci-household_power_consumption"
-# DATASET_ID = "usdot-flights"
+# DATASET_ID = "uci-household_power_consumption"
+DATASET_ID = "usdot-flights_10m"
 
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
 
-SAMPLE_SIZE = 1000
+SAMPLE_SIZE = 10000
 SAVE_SAMPLE = True
 SAMPLING_METHOD = "uniform"
+SUFFIXES = ["_10m", "_100m", "_1b"]
 
 
 def main():
@@ -28,8 +29,13 @@ def main():
     logger.info(f"Sample size: {SAMPLE_SIZE}")
 
     # Setup
+    dataset_id_no_suffix = DATASET_ID
+    for suffix in SUFFIXES:
+        dataset_id_no_suffix = dataset_id_no_suffix.removesuffix(suffix)
     output_dir = os.path.join(RESULTS_DIR, "aqp", "dbestpp")
-    schema_filepath = os.path.join(DATA_DIR, "schemas", "aqp", f"{DATASET_ID}.json")
+    schema_filepath = os.path.join(
+        DATA_DIR, "schemas", "aqp", f"{dataset_id_no_suffix}.json"
+    )
     data_filepath = os.path.join(DATA_DIR, "processed", f"{DATASET_ID}.csv")
     sample_filepath = os.path.join(
         output_dir, "data", f"{DATASET_ID}__sample_size_{SAMPLE_SIZE}.csv"
