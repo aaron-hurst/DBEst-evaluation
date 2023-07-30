@@ -1,6 +1,6 @@
 category_encoders
 dill
-gensim==3.8.3
+gensim==4.3.1
 matplotlib
 numpy
 pandas

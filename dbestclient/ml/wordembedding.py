@@ -106,32 +106,32 @@ class SkipGram:
         # print(headers, "-" * 20, ">" * 20)
         NG = len(self.header_categorical)
         self.dim = dim * len(self.header_categorical)
-        sentences = np.core.defchararray.add(headers, categoricals).tolist()
+        sentences = np.core.defchararray.add(headers.astype(str), categoricals.astype(str)).tolist()
         # print(sentences)
 
         workers = multiprocessing.cpu_count() if workers == -1 else 1
         model = Word2Vec(
             sentences,
-            size=int(self.dim / NG),
+            vector_size=int(self.dim / NG),
             window=window,
             min_count=min_count,
             negative=negative,
-            iter=iters,
+            epochs=iters,
             workers=workers,
         )
 
         # word_vectors = model.wv  # Matix of model
-        vocab = model.wv.vocab  # Vocabulary
+        # vocab = model.wv.vocab  # Vocabulary
         #self.dim = dim * len(self.header_categorical)
         # print("dim is", self.dim)
         # print(model["citylondon"])
 
-        for word in vocab:
+        for word in model.wv.key_to_index:
             # print("word", word)
             for head in self.header_categorical:
                 # print("head", head)
                 if word.startswith(head):
-                    self.embeddings[word] = model.wv[word]
+                    self.embeddings[word] = model.wv.key_to_index[word]
         # print(self.embeddings.keys())
         logger.debug("finish training embedding.")
         return self
@@ -141,20 +141,20 @@ class SkipGram:
         # print("keys,", keys)
         headers = np.repeat([self.header_categorical], len(keys), axis=0)
         # print("headers", headers)
-        sentences = np.core.defchararray.add(headers, keys)  # .tolist()
+        sentences = np.core.defchararray.add(headers.astype(str), keys.astype(str))  # .tolist()
         # print("sentences",sentences)
         # print("self.embeddings", self.embeddings.keys())
 
         # exit()
         
-        col0 =  sentences[:,0]
+        col0 = sentences[:, 0]
         predictions = np.array([self.embeddings[i] for i in col0])
         # print("first columns ", predictions)
 
-        for col_idx in range(1,len(sentences[0])):
+        for col_idx in range(1, len(sentences[0])):
             col = [x.replace(";", "") for x in sentences[:, col_idx]]
             prediction_col = np.array([self.embeddings[i] for i in col])
-            predictions = np.concatenate((predictions, prediction_col),axis=1)
+            predictions = np.concatenate((predictions, prediction_col), axis=1)
         return predictions
         # print("predictions are ")
         # print(predictions)

@@ -115,7 +115,7 @@ class SqlExecutor:
 
         # execute the query
         if self.parser.if_nested_query():
-            warnings.warn("Nested query is currently not supported!")
+            raise NotImplementedError("Nested query not supported.")
         else:
             sql_type = self.parser.get_query_type()
             if sql_type == "create":  # process create query
@@ -791,7 +791,6 @@ class SqlExecutor:
                     predictions = model.predicts(
                         "var", runtime_config=self.runtime_config
                     )
-                    # return predictions
                 else:  # for query without WHERE range selector clause
                     logger.debug("OK")
                     where_conditions = (

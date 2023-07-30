@@ -106,7 +106,7 @@ class DBEstSampling:
                 usecols=self.usecols, split_char=split_char
             )
         else:
-            print("other sampling methods are not implemented, abort.")
+            raise NotImplementedError(f"Sampling methods not implemented: {method}")
 
     def getyx(self, y, x, dropna=True, b_return_mean=False, groupby=None):
         if self.method == "uniform":

@@ -441,11 +441,15 @@ class RegMdnGroupBy:
                 if x_points is not None:
                     xs_encoded = x_points[:, np.newaxis]
                     xzs_encoded = np.concatenate(
-                        [xs_encoded, zs_encoded], axis=1
+                        [
+                            np.array(xs_encoded.ravel(), ndmin=2),
+                            np.array(zs_encoded.ravel(), ndmin=2)
+                        ]
                     )#.tolist()
+                    xzs_encoded = np.transpose(xzs_encoded)
                 else:
                     # print(zs_encoded)
-                    xzs_encoded = zs_encoded#.tolist()
+                    xzs_encoded = zs_encoded  #.tolist()
                     # print(xzs_encoded[:10])
                 #tensor_xzs = torch.stack([torch.Tensor(i) for i in xzs_encoded])
                 tensor_xzs = torch.from_numpy(xzs_encoded.astype(np.float32))

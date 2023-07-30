@@ -18,7 +18,7 @@ DATASET_ID = "usdot-flights"
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
 
-SAMPLE_SIZE = 1000
+SAMPLE_SIZE = 2000
 SAVE_SAMPLE = True
 SAMPLING_METHOD = "uniform"
 
@@ -53,6 +53,7 @@ def main():
         logger.info("Generating sample file with dummy group by column...")
         data_filepath = os.path.join(DATA_DIR, "processed", f"{DATASET_ID}.csv")
         n = sum(1 for _ in open(data_filepath)) - 1  # excludes header
+        os.close(data_filepath)
         skip_rows = np.sort(
             np.random.choice(np.arange(1, n + 1), n - SAMPLE_SIZE, replace=False)
         )
@@ -90,9 +91,9 @@ def main():
             except FileExistsError:
                 logger.debug(f"Model already exists for column pair ({i}, {j}).")
                 continue
-            except (ValueError, IndexError, TypeError) as e:
-                logger.error(f"Failed to build model for column pair ({i}, {j}): {e}")
-                continue
+            # except (ValueError, IndexError, TypeError) as e:
+            #     logger.error(f"Failed to build model for column pair ({i}, {j}): {e}")
+            #     continue
     t_modelling = perf_counter() - t_modelling_start
 
     # Get total size of models
