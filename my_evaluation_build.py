@@ -14,18 +14,49 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, DATA_DIR
 
 
-# DATASET_ID = "uci-household_power_consumption"
-DATASET_ID = "usdot-flights_10m"
+DATASET_ID = "uci-household_power_consumption"
+# DATASET_ID = "usdot-flights_10m"
 
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
 
-SAMPLE_SIZE = 10000
+SAMPLE_SIZE = 500
 SAVE_SAMPLE = True
 SAMPLING_METHOD = "uniform"
 SUFFIXES = ["_10m", "_100m", "_1b"]
 
 logger = logging.getLogger(__name__)
+
+
+def load_sample(filepath, total_rows, sample_size=10000, header=0, chunk_size=10000000):
+    """Loads a dataset from a CSV file. Loads in batches if the file is vary large."""
+    n_chunks = int(np.ceil(total_rows / chunk_size))
+
+    # sample ratio
+    # chunk sizes
+    # samples per chunk
+    # check sum, adjust last
+    sample_ratio = sample_size / total_rows
+    chunk_sizes = [chunk_size] * (n_chunks - 1) + [total_rows % chunk_size]
+    samples_per_chunk = [int(sample_ratio * s) for s in chunk_sizes]
+    if sum(samples_per_chunk) < sample_size:
+        diff = sample_size - sum(samples_per_chunk)
+        samples_per_chunk = [s + (i < diff) for i, s in enumerate(samples_per_chunk)]
+
+    logger.info(f"Total chunks: {n_chunks} (chunk size={chunk_size})")
+    df_chunks = []
+    with pd.read_csv(filepath, header=header, chunksize=chunk_size) as reader:
+        for i, chunk in enumerate(reader):
+            logger.info(f"Loading chunk {i+1}/{n_chunks}")
+            sample_rows = np.sort(
+                np.random.choice(
+                    np.arange(1, chunk.shape[0] + 1),
+                    samples_per_chunk[i],
+                    replace=False,
+                )
+            )
+            df_chunks.append(chunk.iloc[sample_rows])
+    return pd.concat(df_chunks, axis=0, ignore_index=True, copy=False)
 
 
 def build_model(
@@ -51,7 +82,7 @@ def build_model(
         logger.info(f"Model already exists: {table_name}")
         return None
     except NotImplementedError as e:
-        logger.warning(f"Failed to build model {table_name}: {e}")
+        logger.info(f"Failed to build model {table_name}: {e}")
         return None
     logger.info(f"Built model: {table_name}")
     return perf_counter() - t_build_model_start
@@ -78,6 +109,7 @@ def main():
     )
     metadata_filepath = os.path.join(models_dir, "build_metadata.txt")
     n = sum(1 for _ in open(data_filepath)) - 1  # excludes header
+    logger.info(f"Total rows: {n}")
 
     # If not already created, extract a random sample from the dataset and save it as a
     # CSV file with an additional "dummy" group column. DBEst++ uses the group column
@@ -91,10 +123,7 @@ def main():
     # NOTE: A separate file is created for each sample size used.
     if not os.path.isfile(sample_filepath):
         logger.info("Generating sample file with dummy group by column...")
-        skip_rows = np.sort(
-            np.random.choice(np.arange(1, n + 1), n - SAMPLE_SIZE, replace=False)
-        )
-        df = pd.read_csv(data_filepath, header=0, skiprows=skip_rows)
+        df = load_sample(data_filepath, n, SAMPLE_SIZE, chunk_size=1000000)
         df[DUMMY_COLUMN_NAME] = DUMMY_COLUMN_TEXT
         os.makedirs(os.path.dirname(sample_filepath), exist_ok=True)
         df.to_csv(sample_filepath, index=False)
@@ -122,6 +151,7 @@ def main():
                 ),
             )
         t_modelling_sum += sum([t for t in model_timings if t is not None])
+        logger.info(f"Finished building models for column: {column_name}")
     t_modelling_real = perf_counter() - t_modelling_start
 
     # Get total size of models
