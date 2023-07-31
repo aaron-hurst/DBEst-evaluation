@@ -2,7 +2,9 @@
 
 import json
 import logging
+import multiprocessing
 import os
+from itertools import repeat
 from time import perf_counter
 
 import numpy as np
@@ -18,9 +20,40 @@ DATASET_ID = "uci-household_power_consumption"
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
 
-SAMPLE_SIZE = 1000
+SAMPLE_SIZE = 10000
 SAVE_SAMPLE = True
 SAMPLING_METHOD = "uniform"
+
+logger = logging.getLogger(__name__)
+
+
+def build_model(
+    column_name_1, column_name_2, type_1, type_2, sample_filepath, sql_executor
+):
+    """Build and save a single model for a given column pair."""
+    column_1_str = f"{column_name_1} {type_1}"
+    column_2_str = f"{column_name_2} {type_2}"
+    table_name = (
+        f"{DATASET_ID}_{column_name_1}_" f"{column_name_2}_{SAMPLE_SIZE}"
+    ).replace("-", "_")
+    sql_create_model = (
+        f"create table "
+        f"{table_name}({column_1_str}, {column_2_str}) "
+        f"from '{sample_filepath}' "
+        f"group by {DUMMY_COLUMN_NAME} "
+        f"method {SAMPLING_METHOD} size {SAMPLE_SIZE};"
+    )
+    t_build_model_start = perf_counter()
+    try:
+        sql_executor.execute(sql_create_model)
+    except FileExistsError:
+        logger.info(f"Model already exists: {table_name}")
+        return None
+    except NotImplementedError as e:
+        logger.warning(f"Failed to build model {table_name}: {e}")
+        return None
+    logger.info(f"Built model: {table_name}")
+    return perf_counter() - t_build_model_start
 
 
 def main():
@@ -68,31 +101,22 @@ def main():
     t_modelling_start = perf_counter()
     sql_executor = SqlExecutor(models_dir, save_sample=SAVE_SAMPLE)
     sql_executor.n_total_records = {"total": n}
-    n_columns = len(schema["column_names"])
-    for i in range(n_columns):
-        for j in range(n_columns):
-            column_1_str = f"{schema['column_names'][i]} {schema['sql_types'][i]}"
-            column_2_str = f"{schema['column_names'][j]} {schema['sql_types'][j]}"
-            table_name = (
-                f"{DATASET_ID}_{schema['column_names'][i]}_"
-                f"{schema['column_names'][j]}_{SAMPLE_SIZE}"
-            ).replace("-", "_")
-            sql_create_model = (
-                f"create table "
-                f"{table_name}({column_1_str}, {column_2_str}) "
-                f"from '{sample_filepath}' "
-                f"group by {DUMMY_COLUMN_NAME} "
-                f"method {SAMPLING_METHOD} size {SAMPLE_SIZE};"
+    t_modelling_sum = 0
+    for column_name, column_type in zip(schema["column_names"], schema["sql_types"]):
+        with multiprocessing.Pool() as pool:
+            model_timings = pool.starmap(
+                build_model,
+                zip(
+                    repeat(column_name),
+                    schema["column_names"],
+                    repeat(column_type),
+                    schema["sql_types"],
+                    repeat(sample_filepath),
+                    repeat(sql_executor),
+                ),
             )
-            try:
-                sql_executor.execute(sql_create_model)
-                logger.info(f"Built model: {table_name}")
-            except FileExistsError:
-                logger.info(f"Model already exists: {table_name}")
-                continue
-            except NotImplementedError as e:
-                logger.warning(f"Failed to build model {table_name}: {e}")
-    t_modelling = perf_counter() - t_modelling_start
+        t_modelling_sum += sum([t for t in model_timings if t is not None])
+    t_modelling_real = perf_counter() - t_modelling_start
 
     # Get total size of models
     s_models = 0
@@ -133,7 +157,8 @@ def main():
         f.write(f"INTEGRATION_LIMIT         {integration_limit}\n")
 
         f.write("\n------------- Runtime -------------\n")
-        f.write(f"Generate models           {t_modelling:.3f} s\n")
+        f.write(f"Generate models (sum)     {t_modelling_sum:.3f} s\n")
+        f.write(f"Generate models (real)    {t_modelling_real:.3f} s\n")
 
         f.write("\n------------- Storage -------------\n")
         f.write(f"Models                    {s_models:,d} bytes\n")
@@ -144,7 +169,6 @@ def main():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
-    logger = logging.getLogger("main")
     logging.getLogger("gensim.models.word2vec").setLevel(logging.ERROR)
     logging.getLogger("gensim.utils").setLevel(logging.ERROR)
     main()
