@@ -14,13 +14,13 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, DATA_DIR
 
 
-DATASET_ID = "uci-household_power_consumption"
+DATASET_ID = "uci-household_power_consumption_1b"
 # DATASET_ID = "usdot-flights_10m"
 
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
 
-SAMPLE_SIZE = 500
+SAMPLE_SIZE = 10000
 SAVE_SAMPLE = True
 SAMPLING_METHOD = "uniform"
 SUFFIXES = ["_10m", "_100m", "_1b"]
@@ -123,7 +123,7 @@ def main():
     # NOTE: A separate file is created for each sample size used.
     if not os.path.isfile(sample_filepath):
         logger.info("Generating sample file with dummy group by column...")
-        df = load_sample(data_filepath, n, SAMPLE_SIZE, chunk_size=1000000)
+        df = load_sample(data_filepath, n, SAMPLE_SIZE)
         df[DUMMY_COLUMN_NAME] = DUMMY_COLUMN_TEXT
         os.makedirs(os.path.dirname(sample_filepath), exist_ok=True)
         df.to_csv(sample_filepath, index=False)
