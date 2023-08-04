@@ -35,7 +35,10 @@ def load_sample(filepath, total_rows, sample_size=10000, header=0, chunk_size=10
     # Number of samples to extract for each chunk
     n_chunks = int(np.ceil(total_rows / chunk_size))
     sample_ratio = sample_size / total_rows
-    chunk_sizes = [chunk_size] * (n_chunks - 1) + [total_rows % chunk_size]
+    if total_rows % chunk_size:
+        chunk_sizes = [chunk_size] * (n_chunks - 1) + [total_rows % chunk_size]
+    else:
+        chunk_sizes = [chunk_size] * (n_chunks - 1) + [chunk_size]
     samples_per_chunk = [int(sample_ratio * s) for s in chunk_sizes]
     if sum(samples_per_chunk) < sample_size:
         diff = sample_size - sum(samples_per_chunk)
@@ -128,7 +131,9 @@ def main():
     # NOTE: A separate file is created for each sample size used.
     if not os.path.isfile(sample_filepath):
         logger.info("Generating sample file with dummy group by column...")
-        df = load_sample(data_filepath, n, SAMPLE_SIZE, chunk_size=CHUNK_SIZE)
+        df = load_sample(
+            data_filepath, n, sample_size=SAMPLE_SIZE, chunk_size=CHUNK_SIZE
+        )
         df[DUMMY_COLUMN_NAME] = DUMMY_COLUMN_TEXT
         os.makedirs(os.path.dirname(sample_filepath), exist_ok=True)
         df.to_csv(sample_filepath, index=False)

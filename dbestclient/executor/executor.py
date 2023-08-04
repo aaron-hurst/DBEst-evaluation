@@ -216,15 +216,15 @@ class SqlExecutor:
 
                 # if method.lower() == "uniform":
                 if self.save_sample:
+                    sample_filename = os.path.join(
+                        self.config.get_config()["warehousedir"], f"{mdl}.csv"
+                    )
                     sampler.make_sample(
                         original_data_file,
                         ratio,
                         method,
                         split_char=self.config.get_config()["csv_split_char"],
-                        file2save=self.config.get_config()["warehousedir"]
-                        + "/"
-                        + mdl
-                        + ".csv",
+                        file2save=sample_filename,
                         num_total_records=self.n_total_records,
                     )
                 else:
