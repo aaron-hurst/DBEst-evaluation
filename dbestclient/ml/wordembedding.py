@@ -130,19 +130,13 @@ class SkipGram:
             workers=workers,
         )
 
-        # word_vectors = model.wv  # Matix of model
-        vocab = model.wv.key_to_index  # Vocabulary
-        #self.dim = dim * len(self.header_categorical)
-        # print("dim is", self.dim)
-        # print(model["citylondon"])
-
+        # Populate word encodings map (self.embeddings)
+        vocab = np.unique(sentences)
         for word in vocab:
-            # print("word", word)
             for head in self.header_categorical:
-                # print("head", head)
                 if word.startswith(head):
                     self.embeddings[word] = model.wv[word]
-        # print(self.embeddings.keys())
+
         logger.debug("Finished training embedding.")
         return self
 

@@ -81,6 +81,7 @@ def build_model(
         f"method {SAMPLING_METHOD} size {sample_size};"
     )
     t_build_model_start = perf_counter()
+    logger.info(f"Builing model: {table_name}...")
     try:
         sql_executor.execute(sql_create_model)
     except FileExistsError:
@@ -89,7 +90,6 @@ def build_model(
     except NotImplementedError as e:
         logger.info(f"Failed to build model {table_name}: {e}")
         return None
-    logger.info(f"Built model: {table_name}")
     return perf_counter() - t_build_model_start
 
 
