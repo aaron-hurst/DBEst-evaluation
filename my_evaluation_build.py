@@ -139,22 +139,33 @@ def main():
     with open(schema_filepath, "r") as f:
         schema = json.load(f)
     t_modelling_start = perf_counter()
-    t_modelling_sum = 0
     n_cols = len(schema["column_names"])
-    with multiprocessing.Pool() as pool:
-        model_timings = pool.starmap(
-            build_model,
-            zip(
-                np.repeat(schema["column_names"], n_cols),
-                np.tile(schema["column_names"], n_cols),
-                np.repeat(schema["sql_types"], n_cols),
-                np.tile(schema["sql_types"], n_cols),
-                repeat(sample_filepath),
-                repeat(models_dir),
-                repeat(n),
-            ),
-        )
-    t_modelling_sum += sum([t for t in model_timings if t is not None])
+    for i in range(n_cols):
+        for j in range(n_cols):
+            build_model(
+                schema["column_names"][i],
+                schema["column_names"][j],
+                schema["sql_types"][i],
+                schema["sql_types"][j],
+                sample_filepath,
+                models_dir,
+                n,
+            )
+    # t_modelling_sum = 0
+    # with multiprocessing.Pool() as pool:
+    #     model_timings = pool.starmap(
+    #         build_model,
+    #         zip(
+    #             np.repeat(schema["column_names"], n_cols),
+    #             np.tile(schema["column_names"], n_cols),
+    #             np.repeat(schema["sql_types"], n_cols),
+    #             np.tile(schema["sql_types"], n_cols),
+    #             repeat(sample_filepath),
+    #             repeat(models_dir),
+    #             repeat(n),
+    #         ),
+    #     )
+    # t_modelling_sum += sum([t for t in model_timings if t is not None])
     t_modelling_real = perf_counter() - t_modelling_start
 
     # Get total size of models
@@ -203,7 +214,7 @@ def main():
         f.write(f"WORD2VEC_EPOCHS           {word2vec_epochs}\n")
 
         f.write("\n------------- Runtime -------------\n")
-        f.write(f"Generate models (sum)     {t_modelling_sum:.3f} s\n")
+        # f.write(f"Generate models (sum)     {t_modelling_sum:.3f} s\n")
         f.write(f"Generate models (real)    {t_modelling_real:.3f} s\n")
 
         f.write("\n------------- Storage -------------\n")
@@ -216,5 +227,6 @@ def main():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
     logging.getLogger("gensim.models.word2vec").setLevel(logging.ERROR)
+    logging.getLogger("gensim.models.fasttext").setLevel(logging.ERROR)
     logging.getLogger("gensim.utils").setLevel(logging.ERROR)
     main()
