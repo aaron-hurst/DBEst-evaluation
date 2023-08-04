@@ -86,7 +86,7 @@ class SqlExecutor:
                 n_model += 1
 
         if n_model > 0:
-            logger.info(f"Loaded {n_model} models.")
+            logger.debug(f"Loaded {n_model} models.")
             if self.runtime_config["b_show_latency"]:
                 t2 = datetime.now()
                 logger.debug(f"time cost {(t2 - t1).total_seconds()} seconds")

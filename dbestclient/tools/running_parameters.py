@@ -79,7 +79,7 @@ class DbestConfig:
             "accept_filter": False,
 
             # MDN related parameters
-            "n_epoch": 20,
+            "n_epoch": 15,
             "n_gaussians_reg": 3,
             "n_gaussians_density": 10,
             "b_use_gg": False,
@@ -87,7 +87,7 @@ class DbestConfig:
             "n_hidden_layer": 1,
             "n_mdn_layer_node_reg": 10,
             "n_mdn_layer_node_density": 10,
-            "n_embedding_dim": 20,
+            "n_embedding_dim": 10,
             "encoder": "embedding",  # onehot, embedding, binary
             "batch_size": 2000,
             "one_model": True,

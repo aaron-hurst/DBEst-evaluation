@@ -4,11 +4,11 @@ import multiprocessing
 import numpy as np
 
 # import pandas as pd
-from gensim.models import Word2Vec
+from gensim.models import FastText
 
 # from numpy.core.defchararray import startswith
 
-# https://towardsdatascience.com/word-embedding-with-word2vec-and-fasttext-a209c1d3e12c
+# https://towardsdatascience.com/word-embedding-with-FastText-and-fasttext-a209c1d3e12c
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +120,7 @@ class SkipGram:
         # print(sentences)
 
         workers = multiprocessing.cpu_count() if workers == -1 else 1
-        model = Word2Vec(
+        model = FastText(
             sentences,
             vector_size=int(self.dim / NG),
             window=window,

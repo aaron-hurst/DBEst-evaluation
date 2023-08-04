@@ -24,7 +24,7 @@ import os
 import pandas as pd
 import numpy as np
 
-from gensim.models import Word2Vec
+from gensim.models import FastText
 
 logger = logging.getLogger(__name__)
 
@@ -62,15 +62,15 @@ class WordEmbedding:
     ):
 
         # print(NG)# number of group by attributes
-        w2v = Word2Vec(
+        w2v = FastText(
             sentences,
             vector_size=int(dim / NG),
-            window=1,
-            min_count=1,
-            negative=30,
+            window=window,
+            min_count=min_count,
+            negative=negative,
             epopch=iter,
             workers=multiprocessing.cpu_count(),
-        )  # ,ns_exponent=0.0
+        )
         word_vectors = w2v.wv  # Matix of model
         vocab = w2v.wv.key_to_index  # Vocabulary
         self.dim = dim
