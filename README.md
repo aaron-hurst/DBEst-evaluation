@@ -2,7 +2,7 @@
 
 Notes on usage of repository:
 
-* Use Python version `3.8.10`.
+* Use **Python 3.10** and install packages using **pip** and `requirements.txt`.
 * Use `pip` to install packages listed in `requirements.txt`. It is important to use the same package versions.
 * Make a copy of `_config.py` called `config.py` and update the directories defined therein for your system.
 * Run experiments using the scripts `my_evaluation_build.py` and `my_evaluation_run.py`.

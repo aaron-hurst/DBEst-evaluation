@@ -373,7 +373,14 @@ class RegMdnGroupBy:
 
                 if USE_SKIP_GRAM:
                     self.enc = SkipGram().fit(
-                        z_group, x_points, y_points, usecols=usecols,dim=self.config.config["n_embedding_dim"],NG=len(z_group[0]),
+                        z_group,
+                        x_points,
+                        y_points,
+                        usecols=usecols,
+                        dim=self.config.config["n_embedding_dim"],
+                        min_count=self.config.config["word2vec_min_count"],
+                        iters=self.config.config["word2vec_epochs"],
+                        NG=len(z_group[0]),
                     )
                 else:
                     sentences = columns2sentences(z_group, x_points, y_points)
@@ -1410,7 +1417,17 @@ class KdeMdn:
 
                 # from datetime import datetime
                 if USE_SKIP_GRAM:
-                    self.enc = SkipGram().fit(zs, xs, None, usecols=None, b_reg=False,dim=self.config.config["n_embedding_dim"],NG=len(zs[0]),)
+                    self.enc = SkipGram().fit(
+                        zs,
+                        xs,
+                        None,
+                        usecols=None,
+                        b_reg=False,
+                        dim=self.config.config["n_embedding_dim"],
+                        min_count=self.config.config["word2vec_min_count"],
+                        iters=self.config.config["word2vec_epochs"],
+                        NG=len(zs[0]),
+                    )
                 else:
                     sentences = columns2sentences(zs, xs, ys_data=None)
                     self.enc = WordEmbedding()

@@ -14,13 +14,14 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, DATA_DIR
 
 
-DATASET_ID = "uci-household_power_consumption_1b"
+DATASET_ID = "uci-household_power_consumption"
 # DATASET_ID = "usdot-flights_10m"
 
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
 
-SAMPLE_SIZE = 10000
+CHUNK_SIZE = 10000000
+SAMPLE_SIZE = 1000
 SAVE_SAMPLE = True
 SAMPLING_METHOD = "uniform"
 SUFFIXES = ["_10m", "_100m", "_1b"]
@@ -30,12 +31,9 @@ logger = logging.getLogger(__name__)
 
 def load_sample(filepath, total_rows, sample_size=10000, header=0, chunk_size=10000000):
     """Loads a dataset from a CSV file. Loads in batches if the file is vary large."""
-    n_chunks = int(np.ceil(total_rows / chunk_size))
 
-    # sample ratio
-    # chunk sizes
-    # samples per chunk
-    # check sum, adjust last
+    # Number of samples to extract for each chunk
+    n_chunks = int(np.ceil(total_rows / chunk_size))
     sample_ratio = sample_size / total_rows
     chunk_sizes = [chunk_size] * (n_chunks - 1) + [total_rows % chunk_size]
     samples_per_chunk = [int(sample_ratio * s) for s in chunk_sizes]
@@ -43,6 +41,7 @@ def load_sample(filepath, total_rows, sample_size=10000, header=0, chunk_size=10
         diff = sample_size - sum(samples_per_chunk)
         samples_per_chunk = [s + (i < diff) for i, s in enumerate(samples_per_chunk)]
 
+    # Run sampling
     logger.info(f"Total chunks: {n_chunks} (chunk size={chunk_size})")
     df_chunks = []
     with pd.read_csv(filepath, header=header, chunksize=chunk_size) as reader:
@@ -50,30 +49,36 @@ def load_sample(filepath, total_rows, sample_size=10000, header=0, chunk_size=10
             logger.info(f"Loading chunk {i+1}/{n_chunks}")
             sample_rows = np.sort(
                 np.random.choice(
-                    np.arange(1, chunk.shape[0] + 1),
-                    samples_per_chunk[i],
-                    replace=False,
+                    np.arange(chunk.shape[0]), samples_per_chunk[i], replace=False
                 )
             )
             df_chunks.append(chunk.iloc[sample_rows])
+
     return pd.concat(df_chunks, axis=0, ignore_index=True, copy=False)
 
 
 def build_model(
-    column_name_1, column_name_2, type_1, type_2, sample_filepath, sql_executor
+    col_1,
+    col_2,
+    type_1,
+    type_2,
+    sample_filepath,
+    models_dir,
+    n,
+    sample_size=SAMPLE_SIZE,
 ):
     """Build and save a single model for a given column pair."""
-    column_1_str = f"{column_name_1} {type_1}"
-    column_2_str = f"{column_name_2} {type_2}"
-    table_name = (
-        f"{DATASET_ID}_{column_name_1}_" f"{column_name_2}_{SAMPLE_SIZE}"
-    ).replace("-", "_")
+    sql_executor = SqlExecutor(models_dir, save_sample=SAVE_SAMPLE)
+    sql_executor.n_total_records = {"total": n}
+    column_1_str = f"{col_1} {type_1}"
+    column_2_str = f"{col_2} {type_2}"
+    table_name = (f"{DATASET_ID}_{col_1}_" f"{col_2}_{sample_size}").replace("-", "_")
     sql_create_model = (
         f"create table "
         f"{table_name}({column_1_str}, {column_2_str}) "
         f"from '{sample_filepath}' "
         f"group by {DUMMY_COLUMN_NAME} "
-        f"method {SAMPLING_METHOD} size {SAMPLE_SIZE};"
+        f"method {SAMPLING_METHOD} size {sample_size};"
     )
     t_build_model_start = perf_counter()
     try:
@@ -123,7 +128,7 @@ def main():
     # NOTE: A separate file is created for each sample size used.
     if not os.path.isfile(sample_filepath):
         logger.info("Generating sample file with dummy group by column...")
-        df = load_sample(data_filepath, n, SAMPLE_SIZE)
+        df = load_sample(data_filepath, n, SAMPLE_SIZE, chunk_size=CHUNK_SIZE)
         df[DUMMY_COLUMN_NAME] = DUMMY_COLUMN_TEXT
         os.makedirs(os.path.dirname(sample_filepath), exist_ok=True)
         df.to_csv(sample_filepath, index=False)
@@ -134,24 +139,22 @@ def main():
     with open(schema_filepath, "r") as f:
         schema = json.load(f)
     t_modelling_start = perf_counter()
-    sql_executor = SqlExecutor(models_dir, save_sample=SAVE_SAMPLE)
-    sql_executor.n_total_records = {"total": n}
     t_modelling_sum = 0
-    for column_name, column_type in zip(schema["column_names"], schema["sql_types"]):
-        with multiprocessing.Pool() as pool:
-            model_timings = pool.starmap(
-                build_model,
-                zip(
-                    repeat(column_name),
-                    schema["column_names"],
-                    repeat(column_type),
-                    schema["sql_types"],
-                    repeat(sample_filepath),
-                    repeat(sql_executor),
-                ),
-            )
-        t_modelling_sum += sum([t for t in model_timings if t is not None])
-        logger.info(f"Finished building models for column: {column_name}")
+    n_cols = len(schema["column_names"])
+    with multiprocessing.Pool() as pool:
+        model_timings = pool.starmap(
+            build_model,
+            zip(
+                np.repeat(schema["column_names"], n_cols),
+                np.tile(schema["column_names"], n_cols),
+                np.repeat(schema["sql_types"], n_cols),
+                np.tile(schema["sql_types"], n_cols),
+                repeat(sample_filepath),
+                repeat(models_dir),
+                repeat(n),
+            ),
+        )
+    t_modelling_sum += sum([t for t in model_timings if t is not None])
     t_modelling_real = perf_counter() - t_modelling_start
 
     # Get total size of models
@@ -162,35 +165,40 @@ def main():
 
     # Export parameters and statistics
     logger.info("Exporting metadata...")
-    n_epoch = sql_executor.get_parameter("n_epoch")
-    n_gaussians_reg = sql_executor.get_parameter("n_gaussians_reg")
-    n_gaussians_den = sql_executor.get_parameter("n_gaussians_density")
-    regression_type = sql_executor.get_parameter("reg_type")
+    sql_executor = SqlExecutor(models_dir, save_sample=SAVE_SAMPLE)
     density_type = sql_executor.get_parameter("density_type")
     device_type = sql_executor.get_parameter("device")
-    n_mdn_layer_node_reg = sql_executor.get_parameter("n_mdn_layer_node_reg")
-    n_mdn_layer_node_den = sql_executor.get_parameter("n_mdn_layer_node_density")
     integration_epsabs = sql_executor.get_parameter("epsabs")
     integration_epsrel = sql_executor.get_parameter("epsrel")
-    integration_n_divisions = sql_executor.get_parameter("n_division")
     integration_limit = sql_executor.get_parameter("limit")
+    integration_n_divisions = sql_executor.get_parameter("n_division")
+    n_epoch = sql_executor.get_parameter("n_epoch")
+    n_gaussians_den = sql_executor.get_parameter("n_gaussians_density")
+    n_gaussians_reg = sql_executor.get_parameter("n_gaussians_reg")
+    n_mdn_layer_node_den = sql_executor.get_parameter("n_mdn_layer_node_density")
+    n_mdn_layer_node_reg = sql_executor.get_parameter("n_mdn_layer_node_reg")
+    regression_type = sql_executor.get_parameter("reg_type")
+    word2vec_min_count = sql_executor.get_parameter("word2vec_min_count")
+    word2vec_epochs = sql_executor.get_parameter("word2vec_epochs")
     with open(metadata_filepath, "w", newline="") as f:
         f.write("------------- Parameters -------------\n")
         f.write(f"DATASET_ID                {DATASET_ID}\n")
-        f.write(f"SAMPLING_METHOD           {SAMPLING_METHOD}\n")
         f.write(f"SAMPLE_SIZE               {SAMPLE_SIZE}\n")
-        f.write(f"N_EPOCH                   {n_epoch}\n")
-        f.write(f"N_GAUSSIANS_REG           {n_gaussians_reg}\n")
-        f.write(f"N_GAUSSIANS_DEN           {n_gaussians_den}\n")
-        f.write(f"N_MDN_LAYER_NODE_REG      {n_mdn_layer_node_reg}\n")
-        f.write(f"N_MDN_LAYER_NODE_DEN      {n_mdn_layer_node_den}\n")
-        f.write(f"REGRESSION_TYPE           {regression_type}\n")
+        f.write(f"SAMPLING_METHOD           {SAMPLING_METHOD}\n")
         f.write(f"DENSITY_TYPE              {density_type}\n")
         f.write(f"DEVICE_TYPE               {device_type}\n")
         f.write(f"INTEGRATION_EPSABS        {integration_epsabs}\n")
         f.write(f"INTEGRATION_EPSREL        {integration_epsrel}\n")
-        f.write(f"INTEGRATION_N_DIVISIONS   {integration_n_divisions}\n")
         f.write(f"INTEGRATION_LIMIT         {integration_limit}\n")
+        f.write(f"INTEGRATION_N_DIVISIONS   {integration_n_divisions}\n")
+        f.write(f"N_EPOCH                   {n_epoch}\n")
+        f.write(f"N_GAUSSIANS_DEN           {n_gaussians_den}\n")
+        f.write(f"N_GAUSSIANS_REG           {n_gaussians_reg}\n")
+        f.write(f"N_MDN_LAYER_NODE_DEN      {n_mdn_layer_node_den}\n")
+        f.write(f"N_MDN_LAYER_NODE_REG      {n_mdn_layer_node_reg}\n")
+        f.write(f"REGRESSION_TYPE           {regression_type}\n")
+        f.write(f"WORD2VEC_MIN_COUNT        {word2vec_min_count}\n")
+        f.write(f"WORD2VEC_EPOCHS           {word2vec_epochs}\n")
 
         f.write("\n------------- Runtime -------------\n")
         f.write(f"Generate models (sum)     {t_modelling_sum:.3f} s\n")

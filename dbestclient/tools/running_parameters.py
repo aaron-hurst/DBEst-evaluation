@@ -27,17 +27,19 @@ RUNTIME_CONF = {
     "b_show_latency": True,
     "b_print_to_screen": True,
     "result2file": None,
+
     # integral related parameters
     "b_use_integral": False,
     "n_division": 20,  # 20
+
     # integral package related parameters
     "epsabs": 10.0,
     "epsrel": 0.1,
     "limit": 30,
     "model_suffix": ".dill",
     "slaves": Slaves(),
-    "sampling_only":False,
-    "plot":False,
+    "sampling_only": False,
+    "plot": False,
 }
 
 
@@ -68,14 +70,14 @@ class DbestConfig:
             "b_grid_search": False,
             # "b_reg_mean":'True',
             "b_dummy_gb": False,  # not used?
-            
+
             # File format configuration.
             "n_total_point": None,
             "scaling_factor": None,
             "csv_split_char": ",",
             "table_header": None,
             "accept_filter": False,
-            
+
             # MDN related parameters
             "n_epoch": 20,
             "n_gaussians_reg": 3,
@@ -87,8 +89,10 @@ class DbestConfig:
             "n_mdn_layer_node_density": 10,
             "n_embedding_dim": 20,
             "encoder": "embedding",  # onehot, embedding, binary
-            "batch_size": 1000,
+            "batch_size": 2000,
             "one_model": True,
+            "word2vec_min_count": 2,
+            "word2vec_epochs": 15,
         }
 
     def set_parameters(self, config: dict):

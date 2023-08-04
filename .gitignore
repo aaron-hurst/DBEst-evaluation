@@ -4,6 +4,7 @@
 .idea/
 .ipynb_checkpoints/
 .vscode/
+*.lprof
 *.pyc
 *.sample
 config.json
@@ -18,6 +19,7 @@ MNIST_data/
 my_evaluation/
 notebook/
 resources/
+temp.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

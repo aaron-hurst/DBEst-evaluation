@@ -159,8 +159,10 @@ class KdeModelTrainer:
                 logger.debug("*"*80)
                 # density = RegMdn(dim_input=1,n_mdn_layer_node=20)
                 config = self.config.copy()
-                density = KdeMdn(config,
-                                 b_store_training_data=b_plot).fit(groupby, x, runtime_config)
+                density = KdeMdn(
+                    config,
+                    b_store_training_data=b_plot
+                ).fit(groupby, x, runtime_config)
                 if b_plot:
                     density.plot_density_3d(runtime_config=runtime_config)
                     # density.plot_density_per_group(runtime_config=runtime_config)

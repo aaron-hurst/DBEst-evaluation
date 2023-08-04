@@ -34,7 +34,6 @@ class SkipGram:
         min_count=0,
         negative=30,
         iters=30,
-
         workers=-1,
         NG=1,
         b_reg=True,
@@ -61,9 +60,6 @@ class SkipGram:
                 else categorical_data
             )
             ############################################################################
-
-
-            
 
         if usecols is not None:
             self.usecols = usecols
@@ -112,7 +108,7 @@ class SkipGram:
         headers = np.repeat(header, len(categoricals), axis=0)
         # print("*" * 70)
         # print(headers, "-" * 20, ">" * 20)
-        NG=len(self.header_categorical)
+        NG = len(self.header_categorical)
         self.dim = dim * len(self.header_categorical)
 
         ################################################################################
