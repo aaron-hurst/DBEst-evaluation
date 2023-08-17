@@ -2,9 +2,12 @@
 
 import json
 import logging
-import multiprocessing
+
+# import multiprocessing
 import os
-from itertools import repeat
+from datetime import datetime
+
+# from itertools import repeat
 from time import perf_counter
 
 import numpy as np
@@ -14,15 +17,18 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, DATA_DIR
 
 
-DATASET_ID = "uci-household_power_consumption"
-# DATASET_ID = "usdot-flights_10m"
+# DATASET_ID = "uci-household_power_consumption"
+# QUERY_SET = 15
+DATASET_ID = "usdot-flights_10m"
+QUERY_SET = 4
 
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
 
 CHUNK_SIZE = 10000000
-SAMPLE_SIZE = 1000
+SAMPLE_SIZE = 100000
 SAVE_SAMPLE = True
+ONLY_REQUIRED_MODELS = True
 SAMPLING_METHOD = "uniform"
 SUFFIXES = ["_10m", "_100m", "_1b"]
 
@@ -101,6 +107,7 @@ def main():
     logger.info(f"Sample size: {SAMPLE_SIZE}")
 
     # Setup
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     dataset_id_no_suffix = DATASET_ID
     for suffix in SUFFIXES:
         dataset_id_no_suffix = dataset_id_no_suffix.removesuffix(suffix)
@@ -113,11 +120,21 @@ def main():
         output_dir, "data", f"{DATASET_ID}__sample_size_{SAMPLE_SIZE}.csv"
     )
     models_dir = os.path.join(
-        output_dir, "models", f"{DATASET_ID}_sample_size_{SAMPLE_SIZE}"
+        output_dir, "models", f"{DATASET_ID}_sample_size_{SAMPLE_SIZE}_{timestamp}"
     )
     metadata_filepath = os.path.join(models_dir, "build_metadata.txt")
     n = sum(1 for _ in open(data_filepath)) - 1  # excludes header
     logger.info(f"Total rows: {n}")
+
+    # Load list of required models
+    required_models = None
+    if ONLY_REQUIRED_MODELS:
+        logger.info("Loading required models list...")
+        with open(f"models_required_{DATASET_ID}_v{QUERY_SET}.txt", "r") as fp:
+            required_models = fp.readlines()
+        required_models = [
+            "_".join(x.split(",")).replace("\n", "") for x in required_models
+        ]
 
     # If not already created, extract a random sample from the dataset and save it as a
     # CSV file with an additional "dummy" group column. DBEst++ uses the group column
@@ -147,15 +164,20 @@ def main():
     n_cols = len(schema["column_names"])
     for i in range(n_cols):
         for j in range(n_cols):
-            build_model(
-                schema["column_names"][i],
-                schema["column_names"][j],
-                schema["sql_types"][i],
-                schema["sql_types"][j],
-                sample_filepath,
-                models_dir,
-                n,
-            )
+            col_name_1 = schema["column_names"][i]
+            col_name_2 = schema["column_names"][j]
+            if (required_models is None) or (
+                required_models and (f"{col_name_1}_{col_name_2}" in required_models)
+            ):
+                build_model(
+                    col_name_1,
+                    col_name_2,
+                    schema["sql_types"][i],
+                    schema["sql_types"][j],
+                    sample_filepath,
+                    models_dir,
+                    n,
+                )
     # t_modelling_sum = 0
     # with multiprocessing.Pool() as pool:
     #     model_timings = pool.starmap(

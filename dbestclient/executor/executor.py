@@ -785,7 +785,7 @@ class SqlExecutor:
                     # date
                     if "density_column" not in model.__dict__:
                         raise NotImplementedError(
-                            "Range queries over continuous columns not supported"
+                            "Range queries over categorical columns not supported"
                         )
                     ####################################################################
                     x_header_density = model.density_column
