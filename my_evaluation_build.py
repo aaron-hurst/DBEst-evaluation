@@ -16,11 +16,29 @@ import pandas as pd
 from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, DATA_DIR
 
-
-# DATASET_ID = "uci-household_power_consumption"
-# QUERY_SET = 15
-DATASET_ID = "usdot-flights_10m"
-QUERY_SET = 4
+DATASETS = {
+    "ampds-basement_plugs_and_lights": 1,
+    "ampds-current": 1,
+    "ampds-furnace_and_thermostat": 1,
+    "chicago-taxi_trips_2020": 1,
+    "kaggle-aquaponics": 1,
+    "kaggle-light_detection": 1,
+    "kaggle-smart_building_system": 1,
+    "kaggle-temperature_iot_on_gcp": 1,
+    "uci-gas_sensor_home_activity": 1,
+    # "uci-household_power_consumption": 1,
+    # "usdot-flights": 1,
+    # "uci-household_power_consumption": 15,
+    # "uci-household_power_consumption_synthetic": 15,
+    # "uci-household_power_consumption_10m": 15,
+    # "uci-household_power_consumption_100m": 15,
+    # "uci-household_power_consumption_1b": 15,
+    # "usdot-flights": 4,
+    # "usdot-flights_synthetic": 4,
+    # "usdot-flights_10m": 4,
+    # "usdot-flights_100m": 4,
+    # "usdot-flights_1b": 4,
+}
 
 DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
@@ -67,6 +85,7 @@ def load_sample(filepath, total_rows, sample_size=10000, header=0, chunk_size=10
 
 
 def build_model(
+    dataset_id,
     col_1,
     col_2,
     type_1,
@@ -81,7 +100,7 @@ def build_model(
     sql_executor.n_total_records = {"total": n}
     column_1_str = f"{col_1} {type_1}"
     column_2_str = f"{col_2} {type_2}"
-    table_name = (f"{DATASET_ID}_{col_1}_" f"{col_2}_{sample_size}").replace("-", "_")
+    table_name = (f"{dataset_id}_{col_1}_" f"{col_2}_{sample_size}").replace("-", "_")
     sql_create_model = (
         f"create table "
         f"{table_name}({column_1_str}, {column_2_str}) "
@@ -102,25 +121,25 @@ def build_model(
     return perf_counter() - t_build_model_start
 
 
-def main():
-    logger.info(f"Analysing dataset: {DATASET_ID}")
+def build_model_for_dataset(dataset_id, query_set):
+    logger.info(f"Analysing dataset: {dataset_id}")
     logger.info(f"Sample size: {SAMPLE_SIZE}")
 
     # Setup
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    dataset_id_no_suffix = DATASET_ID
+    dataset_id_no_suffix = dataset_id
     for suffix in SUFFIXES:
         dataset_id_no_suffix = dataset_id_no_suffix.removesuffix(suffix)
     output_dir = os.path.join(RESULTS_DIR, "aqp", "dbestpp")
     schema_filepath = os.path.join(
         DATA_DIR, "schemas", "aqp", f"{dataset_id_no_suffix}.json"
     )
-    data_filepath = os.path.join(DATA_DIR, "processed", f"{DATASET_ID}.csv")
+    data_filepath = os.path.join(DATA_DIR, "processed", f"{dataset_id}.csv")
     sample_filepath = os.path.join(
-        output_dir, "data", f"{DATASET_ID}__sample_size_{SAMPLE_SIZE}.csv"
+        output_dir, "data", f"{dataset_id}__sample_size_{SAMPLE_SIZE}.csv"
     )
     models_dir = os.path.join(
-        output_dir, "models", f"{DATASET_ID}_sample_size_{SAMPLE_SIZE}_{timestamp}"
+        output_dir, "models", f"{dataset_id}_sample_size_{SAMPLE_SIZE}_{timestamp}"
     )
     metadata_filepath = os.path.join(models_dir, "build_metadata.txt")
     n = sum(1 for _ in open(data_filepath)) - 1  # excludes header
@@ -130,7 +149,10 @@ def main():
     required_models = None
     if ONLY_REQUIRED_MODELS:
         logger.info("Loading required models list...")
-        with open(f"models_required_{DATASET_ID}_v{QUERY_SET}.txt", "r") as fp:
+        required_models_filepath = os.path.join(
+            "evaluation", f"models_required_{dataset_id}_v{query_set}.txt"
+        )
+        with open(required_models_filepath, "r") as fp:
             required_models = fp.readlines()
         required_models = [
             "_".join(x.split(",")).replace("\n", "") for x in required_models
@@ -170,6 +192,7 @@ def main():
                 required_models and (f"{col_name_1}_{col_name_2}" in required_models)
             ):
                 build_model(
+                    dataset_id,
                     col_name_1,
                     col_name_2,
                     schema["sql_types"][i],
@@ -198,7 +221,7 @@ def main():
     # Get total size of models
     s_models = 0
     for f in os.listdir(models_dir):
-        if f.startswith(DATASET_ID.replace("-", "_")) and f.endswith(".dill"):
+        if f.startswith(dataset_id.replace("-", "_")) and f.endswith(".dill"):
             s_models += os.stat(os.path.join(models_dir, f)).st_size
 
     # Export parameters and statistics
@@ -221,7 +244,7 @@ def main():
     word2vec_epochs = sql_executor.get_parameter("word2vec_epochs")
     with open(metadata_filepath, "w", newline="") as f:
         f.write("------------- Parameters -------------\n")
-        f.write(f"DATASET_ID                {DATASET_ID}\n")
+        f.write(f"dataset_id                {dataset_id}\n")
         f.write(f"SAMPLE_SIZE               {SAMPLE_SIZE}\n")
         f.write(f"SAMPLING_METHOD           {SAMPLING_METHOD}\n")
         f.write(f"DENSITY_TYPE              {density_type}\n")
@@ -248,7 +271,11 @@ def main():
         f.write(f"Models                    {s_models:,d} bytes\n")
 
     logger.info("Done.")
-    return
+
+
+def main():
+    for dataset_id, query_set in DATASETS.items():
+        build_model_for_dataset(dataset_id, query_set)
 
 
 if __name__ == "__main__":
