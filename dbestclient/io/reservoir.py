@@ -12,12 +12,14 @@ http://erikerlandson.github.io/blog/2015/11/20/very-fast-reservoir-sampling/
 from __future__ import division, print_function, with_statement
 
 import logging
+import re
 from math import log
 from random import random
 from sys import stderr, stdin
 
 import numpy as np
 import pandas as pd
+
 # from statsmodels.compat.pandas import frequencies
 
 from dbestclient.tools.variables import UseCols
@@ -89,6 +91,17 @@ class ReservoirSampling:
                     item = next(iterator)
                     if len(res) < R:
                         item = item.replace("\n", "").split(split_char)
+                        # re-combine any quote-encapsulated commas
+                        while any(['"' in x for x in item]):
+                            for col_idx, x in enumerate(item):
+                                if '"' in x:
+                                    restored_value = f"{item[col_idx]},{item[col_idx + 1]}"
+                                    restored_value = restored_value.replace('"', "")
+                                    item = (
+                                        item[: col_idx - 1]
+                                        + [restored_value]
+                                        + item[col_idx + 2 :]
+                                    )
                         p("> Adding element nb {0}: {1!r}", len(res), item)
                         res.append(item)
 
@@ -184,11 +197,11 @@ class ReservoirSampling:
 
                 # print(self.sampledf)
                 # print(self.sampledf["tenantid"])
-                
+
                 # Prevent duplicate columns
                 usecols_list = list(set(columns_continous + columns_categorial))
                 self.sampledf = self.sampledf[usecols_list]
-                
+
                 # print(usecols)
                 # print("usecols_list", usecols_list)
 
