@@ -17,15 +17,15 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, DATA_DIR
 
 DATASETS = {
-    "ampds-basement_plugs_and_lights": 1,
-    "ampds-current": 1,
-    "ampds-furnace_and_thermostat": 1,
-    "chicago-taxi_trips_2020": 1,
-    "kaggle-aquaponics": 1,
-    "kaggle-light_detection": 1,
-    "kaggle-smart_building_system": 1,
-    "kaggle-temperature_iot_on_gcp": 1,
-    "uci-gas_sensor_home_activity": 1,
+    # "ampds-basement_plugs_and_lights": 1,
+    # "ampds-current": 1,
+    # "ampds-furnace_and_thermostat": 1,
+    "chicago-taxi_trips_2020": 3,
+    "kaggle-aquaponics": 3,
+    # "kaggle-light_detection": 1,
+    # "kaggle-smart_building_system": 1,
+    "kaggle-temperature_iot_on_gcp": 3,
+    # "uci-gas_sensor_home_activity": 1,
     # "uci-household_power_consumption": 1,
     # "usdot-flights": 1,
     # "uci-household_power_consumption": 15,
@@ -44,7 +44,7 @@ DUMMY_COLUMN_NAME = "_group"
 DUMMY_COLUMN_TEXT = "all"
 
 CHUNK_SIZE = 10000000
-SAMPLE_SIZE = 100000
+SAMPLE_SIZE = 10000
 SAVE_SAMPLE = True
 ONLY_REQUIRED_MODELS = True
 SAMPLING_METHOD = "uniform"
