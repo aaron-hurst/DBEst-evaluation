@@ -17,17 +17,17 @@ from dbestclient.executor.executor import SqlExecutor
 from config import LOG_FORMAT, RESULTS_DIR, DATA_DIR
 
 DATASETS = {
-    # "ampds-basement_plugs_and_lights": 1,
-    # "ampds-current": 1,
-    # "ampds-furnace_and_thermostat": 1,
-    "chicago-taxi_trips_2020": 3,
-    "kaggle-aquaponics": 3,
-    # "kaggle-light_detection": 1,
-    # "kaggle-smart_building_system": 1,
-    "kaggle-temperature_iot_on_gcp": 3,
-    # "uci-gas_sensor_home_activity": 1,
-    # "uci-household_power_consumption": 1,
-    # "usdot-flights": 1,
+    # "ampds-basement_plugs_and_lights": 2,
+    # "ampds-current": 2,
+    # "ampds-furnace_and_thermostat": 2,
+    # "chicago-taxi_trips_2020": 4,
+    # "kaggle-aquaponics": 4,
+    # "kaggle-light_detection": 2,
+    # "kaggle-smart_building_system": 2,
+    # "kaggle-temperature_iot_on_gcp": 4,
+    # "uci-gas_sensor_home_activity": 2,
+    # "uci-household_power_consumption": 2,
+    # "usdot-flights": 2,
     # "uci-household_power_consumption": 15,
     # "uci-household_power_consumption_synthetic": 15,
     # "uci-household_power_consumption_10m": 15,
@@ -219,10 +219,12 @@ def build_model_for_dataset(dataset_id, query_set):
     t_modelling_real = perf_counter() - t_modelling_start
 
     # Get total size of models
+    n_models = 0
     s_models = 0
     for f in os.listdir(models_dir):
         if f.startswith(dataset_id.replace("-", "_")) and f.endswith(".dill"):
             s_models += os.stat(os.path.join(models_dir, f)).st_size
+            n_models += 1
 
     # Export parameters and statistics
     logger.info("Exporting metadata...")
@@ -268,7 +270,8 @@ def build_model_for_dataset(dataset_id, query_set):
         f.write(f"Generate models (real)    {t_modelling_real:.3f} s\n")
 
         f.write("\n------------- Storage -------------\n")
-        f.write(f"Models                    {s_models:,d} bytes\n")
+        f.write(f"Total models              {n_models:,d} bytes\n")
+        f.write(f"Models storage            {s_models:,d} bytes\n")
 
     logger.info("Done.")
 
