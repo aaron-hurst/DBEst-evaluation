@@ -147,12 +147,13 @@ class DBEstParser:
                 #           token.is_whitespace, token.normalized)
                 splits = (
                     clause.replace("=", " = ")
+                    .replace(" is ", "=")
                     .replace("AND", "and")
                     .replace("where", "")
                     .replace("WHERE", "")
                     .split("and")
                 )
-                if ("or" in clause) or ("OR" in clause):
+                if (" or " in clause) or (" OR " in clause):
                     raise NotImplementedError("OR statements not supported.")
 
                 # print("splits", splits)

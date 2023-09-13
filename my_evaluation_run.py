@@ -36,6 +36,7 @@ DATASETS = {
     # "usdot-flights_1b": 4,
 }
 SAMPLE_SIZE = 10000
+INCLUDE_FAILED = False
 
 
 def get_relative_error_pct(true, predicted):
@@ -60,7 +61,7 @@ def get_relative_bound_pct(true, ci_half_width):
         return 100
 
 
-def build_models(dataset_id, query_set):
+def run_evaluation(dataset_id, query_set):
     logger.info(f"Analysing dataset: {dataset_id}")
     logger.info(f"Sample size: {SAMPLE_SIZE}")
 
@@ -122,10 +123,14 @@ def build_models(dataset_id, query_set):
         query_dbestpp = " ".join(query_split)
         try:
             estimate, t_estimate = sql_executor.execute(query_dbestpp)
+            estimate = estimate.iloc[0, 1]
         except NotImplementedError as e:
             logger.info(f"Failed query {i}: {e}")
-            continue
-        estimate = estimate.iloc[0, 1]
+            if INCLUDE_FAILED:
+                estimate = None
+                t_estimate = None
+            else:
+                continue
         results.append(
             {
                 "query_id": i,
@@ -220,7 +225,7 @@ def build_models(dataset_id, query_set):
 
 def main():
     for dataset_id, query_set in DATASETS.items():
-        build_models(dataset_id, query_set)
+        run_evaluation(dataset_id, query_set)
 
 
 if __name__ == "__main__":
