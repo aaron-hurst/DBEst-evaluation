@@ -67,26 +67,33 @@ def run_evaluation(dataset_id, query_set):
 
     # Setup
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    output_dir = os.path.join(RESULTS_DIR, "aqp", "dbestpp")
+    dbestpp_dir = os.path.join(RESULTS_DIR, "aqp", "dbestpp")
     queries_filepath = os.path.join(QUERIES_DIR, f"{dataset_id}_v{query_set}.txt")
     ground_truth_filepath = os.path.join(
         QUERIES_DIR, "ground_truth", f"{dataset_id}_v{query_set}_gt.csv"
     )
     results_filepath = os.path.join(
-        output_dir,
+        dbestpp_dir,
         "results",
         dataset_id,
         f"queries_v{query_set}_sample_size_{SAMPLE_SIZE}_{timestamp}.csv",
     )
     metadata_filepath = os.path.join(
-        output_dir,
+        dbestpp_dir,
         "results",
         dataset_id,
         f"queries_v{query_set}_sample_size_{SAMPLE_SIZE}_{timestamp}_metadata.txt",
     )
-    models_dir = os.path.join(
-        output_dir, "models", f"{dataset_id}_sample_size_{SAMPLE_SIZE}"
-    )
+
+    # Get most recent models directory fulfilling criteria
+    models_dir = None
+    model_prefix = f"{dataset_id}_sample_size_{SAMPLE_SIZE}"
+    for dirname in os.listdir(os.path.join(dbestpp_dir, "models")):
+        if dirname.startswith(model_prefix):
+            models_dir = os.path.join(dbestpp_dir, "models", dirname)
+    if models_dir is None:
+        raise FileNotFoundError(f"No model found for {model_prefix}")
+    logger.info(f"Using models from: {models_dir}")
 
     # Evaluate queries
     logger.info("Evaluating queries...")
