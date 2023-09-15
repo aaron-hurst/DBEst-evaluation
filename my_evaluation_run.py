@@ -89,8 +89,9 @@ def run_evaluation(dataset_id, query_set):
     models_dir = None
     model_prefix = f"{dataset_id}_sample_size_{SAMPLE_SIZE}"
     for dirname in os.listdir(os.path.join(dbestpp_dir, "models")):
-        if dirname.startswith(model_prefix):
+        if dirname == model_prefix:
             models_dir = os.path.join(dbestpp_dir, "models", dirname)
+            break
     if models_dir is None:
         raise FileNotFoundError(f"No model found for {model_prefix}")
     logger.info(f"Using models from: {models_dir}")
